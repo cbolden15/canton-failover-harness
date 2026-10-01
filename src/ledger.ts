@@ -2,10 +2,19 @@ import { SDK, CustomLogAdapter, signTransactionHash, getPublicKeyFromPrivate, ty
 import { z } from 'zod';
 import { Config, EndpointId, Fault, Operation, Snapshot } from './model.js';
 import { Transport } from './transport.js';
+import { bundledPackageName } from './assets.js';
+
+// This devnet's Ledger API rejects package-id-qualified template identifiers in requests
+// ("expected a package name"); it requires package-name addressing instead. Created events
+// still report the concrete package-id form, so response parsing is unaffected.
+const requestTemplateId = (entity: string) => `#${bundledPackageName}:Failover:${entity}`;
 
 const integer = z.union([z.string().regex(/^\d+$/), z.number()]).transform(Number).pipe(z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER));
-const stateSchema = z.object({ owner: z.string(), runId: z.string(), nextSequence: integer.pipe(z.number().positive()), previousReceiptId: z.string().nullable() });
-const receiptSchema = z.object({ owner: z.string(), runId: z.string(), sequence: integer.pipe(z.number().positive()), operationId: z.string(), payloadDigest: z.string(), inputStateId: z.string(), previousReceiptId: z.string().nullable() });
+// This devnet's Ledger API omits an unset Optional field from createArgument entirely
+// rather than reporting it as null; normalize both to null.
+const optionalReceiptId = z.string().nullish().transform(v => v ?? null);
+const stateSchema = z.object({ owner: z.string(), runId: z.string(), nextSequence: integer.pipe(z.number().positive()), previousReceiptId: optionalReceiptId });
+const receiptSchema = z.object({ owner: z.string(), runId: z.string(), sequence: integer.pipe(z.number().positive()), operationId: z.string(), payloadDigest: z.string(), inputStateId: z.string(), previousReceiptId: optionalReceiptId });
 const silentLogger = new CustomLogAdapter(() => {});
 
 export interface Ledger {
@@ -57,9 +66,9 @@ export class CantonLedger implements Ledger {
     const seen = new Set<string>();
     const ids = new Set<string>();
     for (let pages = 0; pages < 10000; pages++) {
-      const page = z.object({ activeAtOffset: z.number(), nextPageToken: z.string().optional(), activeContracts: z.array(z.unknown()) }).parse(await this.transport.raw('POST', '/v2/state/active-contracts-page', {
+      const page = z.object({ activeAtOffset: z.number(), nextPageToken: z.string().nullish().transform(v => v ?? undefined), activeContracts: z.array(z.unknown()) }).parse(await this.transport.raw('POST', '/v2/state/active-contracts-page', {
         activeAtOffset: end.offset, maxPageSize: 200, ...(pageToken ? { pageToken } : {}),
-        eventFormat: { filtersByParty: { [this.config.party]: { cumulative: ['RunState', 'Receipt'].map(name => ({ identifierFilter: { TemplateFilter: { value: { templateId: `${this.config.packageId}:Failover:${name}`, includeCreatedEventBlob: false } } } })) } }, verbose: true },
+        eventFormat: { filtersByParty: { [this.config.party]: { cumulative: ['RunState', 'Receipt'].map(name => ({ identifierFilter: { TemplateFilter: { value: { templateId: requestTemplateId(name), includeCreatedEventBlob: false } } } })) } }, verbose: true },
       }));
       if (page.activeAtOffset !== end.offset) throw new Fault('integrity', 'Snapshot offset changed between pages');
       for (const raw of page.activeContracts) {
@@ -83,10 +92,10 @@ export class CantonLedger implements Ledger {
     throw new Fault('integrity', 'Snapshot exceeded pagination bound');
   }
   async create(runId: string, beforeExecute: () => string): Promise<void> {
-    await this.submit(`${runId}:init`, { CreateCommand: { templateId: `${this.config.packageId}:Failover:RunState`, createArguments: { owner: this.config.party, runId, nextSequence: '1', previousReceiptId: null } } }, beforeExecute);
+    await this.submit(`${runId}:init`, { CreateCommand: { templateId: requestTemplateId('RunState'), createArguments: { owner: this.config.party, runId, nextSequence: '1', previousReceiptId: null } } }, beforeExecute);
   }
   async advance(runId: string, op: Operation, beforeExecute: () => string): Promise<void> {
-    await this.submit(`${runId}:${op.sequence}`, { ExerciseCommand: { templateId: `${this.config.packageId}:Failover:RunState`, contractId: op.inputStateId, choice: 'Advance', choiceArgument: { sequence: String(op.sequence), payloadDigest: op.payloadDigest } } }, beforeExecute);
+    await this.submit(`${runId}:${op.sequence}`, { ExerciseCommand: { templateId: requestTemplateId('RunState'), contractId: op.inputStateId, choice: 'Advance', choiceArgument: { sequence: String(op.sequence), payloadDigest: op.payloadDigest } } }, beforeExecute);
   }
   private async submit(commandId: string, command: unknown, beforeExecute: () => string): Promise<void> {
     const sdk = await this.wallet();

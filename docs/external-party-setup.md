@@ -148,6 +148,6 @@ node dist/cli.js init --config runs/devnet.json --journal runs/devnet-001/journa
 node dist/cli.js run --config runs/devnet.json --journal runs/devnet-001/journal.sqlite
 ```
 
-Use a fresh journal for each new run. After the healthy baseline, configure a failover scenario with the chosen endpoint, survivor-operation count, and recovery limit, then initialize a new journal and follow the README's outage-marker procedure. Preflight verifies reads and configuration; the controlled outage test is what verifies that either host can continue the workload independently.
+Use a fresh journal for each new run. After the healthy baseline, configure a failover scenario with the chosen endpoint, survivor-operation count, and recovery limit, then initialize a new journal and follow the [outage-marker procedure](running-tests.md#run-and-recover). Preflight verifies reads and configuration; the controlled outage test is what verifies that either host can continue the workload independently.
 
 These examples were checked against the installed SDK and API types and syntax-checked locally. Successful onboarding, OIDC permissions, and topology propagation remain unverified until run against your participants.

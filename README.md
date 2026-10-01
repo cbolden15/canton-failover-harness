@@ -1,12 +1,16 @@
 # Canton failover harness
 
-A TypeScript CLI, Daml receipt contract, and SQLite journal for a controlled two-participant failover exercise. The CLI keeps submitting a small sequential workload, switches participants after availability failures or when alternate evidence resolves stalled receipt progress, and checks that every intended operation has exactly one matching receipt in the run's contract chain.
+Test whether a workload can continue through either of two Canton participants hosting **the same external party ID**. The CLI submits signed test transactions, reconciles uncertain outcomes, and verifies receipt agreement after recovery.
 
-This is the application used to test the infrastructure. It does not stop nodes, change topology, upload packages, onboard parties, or manage a production failover service.
+This is a test tool. Operators control infrastructure faults and prepare participant topology.
 
-## Start here
+[![Architecture: a client signer, runner, and SQLite journal connect to two participants hosting one party on a shared synchronizer](docs/diagrams/architecture.visual-check.2048x1320.light.png)](docs/diagrams/README.md)
 
-Install Node.js **24.10 or later** (Node 24 and 26 are the CI targets), clone this repository, and open its directory:
+[How it works](docs/diagrams/README.md) · [Download the interactive diagram](docs/diagrams/architecture.html) and open it in a browser.
+
+## Try it
+
+Requires **Node.js 24.10 or newer**.
 
 ```sh
 git clone https://github.com/cbolden15/canton-failover-harness.git
@@ -15,156 +19,28 @@ npm ci
 npm start
 ```
 
-The terminal menu offers a local demo, participant setup, readiness checks, a new run, and resume. Choose **Try the local demo** first. No Canton credentials, Daml SDK, or running validators are needed. Each demo gets a fresh directory under `runs/`.
+Choose **Try the local demo**. It needs no credentials, validators, or Daml SDK. A successful demo reports `SIMULATION_FAILOVER_PASS` and saves JSON/CSV results under `runs/`. Simulation does not validate your live network.
 
-The demo loses a successful reply, takes simulated A offline, continues through B, and checks agreement after A recovers. A successful result is `SIMULATION_FAILOVER_PASS`, not evidence about a real network. Your output directory contains `report.json`, `operations.csv`, and the SQLite journal.
+## Test your participants
 
-For a direct command, use `npm start -- <command>`. For machine-readable output, use `npm run --silent start -- demo --json`. Commands default to JSON when output is piped; `--human` overrides that. Successful JSON output goes to stdout. Errors are single-line JSON objects on stderr, which may also contain Node runtime warnings.
-
-## Connect your participants
-
-Live testing requires two prepared participants hosting the same external party. Setup can discover identifiers and validate access, but operators still need to supply the network and identity prerequisites.
-
-1. Upload the bundled `contracts/artifacts/canton-failover-receipts-0.1.0.dar` to both participants using your approved operator workflow. You do not need to compile Daml to use the harness. The package ID and checksum are in [the contract guide](contracts/README.md).
-2. Follow [external-party setup](docs/external-party-setup.md): one party ID, both participants as confirming hosts, confirmation threshold one, and ledger-user rights on each. Obtain the dedicated test party's signing key and endpoint authentication credentials.
-3. Put credentials in your shell/secret manager, or copy `.env.example` to a private `.env` file. Files are loaded only when explicitly selected with `--env-file`; setup asks for variable names, never secret values.
-4. Run `npm start -- setup --env-file .env`. The wizard supports Keycloak, Okta, Auth0, generic OIDC, and static tokens. It discovers participant IDs and synchronizers through authenticated reads, derives the signing fingerprint locally when possible, and provides manual fallback. Choose baseline for the first connectivity exercise, or failover to test outage acceptance.
-5. Run the saved profile through doctor and start:
+First, follow the [live-test guide](docs/running-tests.md#connect-your-participants) to prepare the shared party, permissions, receipt DAR, and credentials. Then configure a profile:
 
 ```sh
+npm start -- setup --env-file .env
 npm start -- doctor --profile testnet --env-file .env
 npm start -- start --profile testnet --env-file .env
 ```
 
-Replace `testnet` with the name you chose. Profiles are saved in `profiles/` relative to your working directory, with owner-only permissions on Unix. They contain environment variable references, not credentials. Existing profiles are never overwritten; edit their JSON or create a new name. Use `--config /path/to/config.json` for a config stored elsewhere. `config.example.json` remains available for noninteractive setup.
+Use the profile name you chose. Environment files load only with `--env-file`; omit it when credentials are already in your environment. Start with a healthy baseline, then follow the [outage and recovery procedure](docs/running-tests.md#run-and-recover).
 
-`doctor` lists independent prerequisite failures together, including missing variables, signing fingerprint, participant identity, synchronizer connectivity, package registration, complete active-contract reads, and the bundled DAR checksum. A failed A check does not suppress B's results. It only acquires auth tokens and reads ledger state. It labels topology as operator-attested and independent writes as untested. Readiness is not proof of failover readiness under an outage.
+**Keep your journal.** Resume interrupted or uncertain runs with the same journal; never create another root to clear an error.
 
-Set `topologyConfirmed` only after the operator checks are complete. The wizard defaults this attestation to false. For Devnet, keep `mode: "testnet"`; endpoint URLs select the network. The signing key format is the Wallet SDK's base64-encoded 64-byte Ed25519 secret key. No Blockdaemon Wallet service is needed. See [authentication](docs/authentication.md) for provider configuration.
+## Documentation
 
-## Run and recover
-
-`start` runs doctor, creates a fresh run directory, initializes one ledger root, and submits the configured workload. Live `start`, `init`, `run`, and `resume` submit signed transactions. The wizard defaults to 30 sequential operations at two-second intervals; confirmation and failover add time. This is not a throughput benchmark.
-
-In an interactive terminal, progress shows the active participant, committed and unresolved operations, acceptance status, and fresh survivor confirmations. For a failover scenario:
-
-1. Wait for root confirmation, then introduce the approved infrastructure fault outside this tool.
-2. Type `s` and Enter once the fault is active. Keep the participant unavailable while the survivor completes the required fresh operations.
-3. When the requirement is reached, type `e` and Enter before starting restoration.
-4. Restore the participant through your operator procedure. Both participants must agree before the run passes.
-
-Type `status` for progress or `q` to stop safely. Ctrl+C also stops after the current bounded request, preserves uncertain outcomes, and exports a report. Hard process termination or power loss cannot export immediately; use `report` or `resume` with the preserved journal afterward.
-
-Every completed, failed, or gracefully interrupted initialized run exports `report.json` and `operations.csv` beside its journal (override with `--out`). Incomplete runs print an exact resume command, including an explicitly selected env-file path. `resume` reuses the saved config path when available; credentials still need to be supplied again through the environment or `--env-file`.
-
-```sh
-npm start -- resume --journal ./runs/YOUR-RUN/journal.sqlite --env-file .env
-npm start -- report --journal ./runs/YOUR-RUN/journal.sqlite
-```
-
-The menu lists saved live runs in the current directory's `runs/`. Simulation endpoints are temporary, so demos are restarted fresh. `resume --primary B` starts on B. Automatic switching is sticky; recovery of A alone does not switch traffic back. The local lock prevents two runners from driving the same journal.
-
-For automation or separate terminals, the original commands remain available:
-
-```sh
-npm start -- init --config ./testnet.json --journal ./runs/testnet-001/journal.sqlite
-npm start -- run --config ./testnet.json --journal ./runs/testnet-001/journal.sqlite
-npm start -- mark --journal ./runs/testnet-001/journal.sqlite --label fault-start --endpoint A
-npm start -- mark --journal ./runs/testnet-001/journal.sqlite --label fault-end --endpoint A
-```
-
-Record `fault-start` after introducing the fault and `fault-end` before restoration. The harness also requires an observed availability error inside that interval. Markers are operator attestations, not automatic verification of an infrastructure shutdown. Restore both participants before the convergence deadline for a complete verdict. An ambiguous `init` must be resumed with its original journal; never create a new root to clear an error. `preflight` is an alias for `doctor`.
-
-## The three pieces
-
-| Piece | Location | Behavior |
-| --- | --- | --- |
-| CLI | Laptop or separate server | Signs test transactions, chooses A or B, reconciles uncertain outcomes, resumes after restart, and exports results. |
-| Receipt contract | Canton ledger | A consuming `Advance` choice creates one receipt and the next state atomically. Competing attempts consume the same input state, so only one can succeed. |
-| Journal | SQLite beside the CLI | Saves operation intent before submission, marks attempts unknown before execute, and records confirmation only after reading matching ledger evidence. |
-
-The journal is essential recovery state. Keep the SQLite database with its `-wal` and `-shm` companions while the process is running. For a file copy, stop the runner and close its database first. Do not delete the journal to clear an error.
-
-## Recovery rules
-
-1. Persist the intended sequence, payload digest, and exact input contract before submitting. Persist a submission attempt before sending execute.
-2. After a timeout, lost response, or restart, inspect ledger receipts. A timeout does not mean failure, and an empty or lagging read does not prove that the submission failed.
-3. If retrying is necessary, re-prepare the same logical operation against the same input contract. Cross-participant command deduplication is not assumed. The consuming contract is the duplicate-transition guard.
-4. Proceed to the next sequence only after matching the receipt against the persisted intent. Require both participants to agree on the complete receipt chain and final state before a pass.
-
-If receipt progress stalls for `max(pollMs, retryAfterMs)`, the runner checks the other participant before retrying. Successful stale reads, acknowledgements, and contract conflicts do not restart this wait. A validated receipt can resolve an unknown operation without another execution. The runner switches to the other participant when it confirms that operation, or when it exposes the expected input state that the active participant has not reached. Empty or equally stale snapshots do not trigger a switch. Probes remain subject to the operation and run deadlines, and final agreement from both participants is still required.
-
-Root creation cannot use an earlier consuming input. After an ambiguous root submission, the CLI only reconciles; it never submits a second root automatically. If no root can be established, leave the run inconclusive and investigate with the operator. Resume an uncertain `init` with `resume`, not another `init`.
-
-The contract is not a global uniqueness registry for arbitrary owner-created data. A party with signing authority can create extra roots, create receipts outside the intended workflow, or archive contracts. The harness trusts the dedicated signer and validates a pinned root, expected payloads, journal intents, receipt links, and one active state. It fails on inconsistencies it observes. Do not run another application with the test key or reuse a journal for a different workload.
-
-## Results and limits
-
-The example config selects a failover exercise against A:
-
-```json
-"scenario": {
-  "type": "failover",
-  "faultedEndpoint": "A",
-  "minSurvivorOperations": 1,
-  "recoveryTimeoutMs": 60000
-}
-```
-
-Choose the recovery limit before initializing the run. The example's 60 seconds is an illustrative acceptance limit, not a measured recovery guarantee. Start on the participant you intend to fault; for the reverse exercise, set both `primary` and `scenario.faultedEndpoint` to `"B"`. For a healthy baseline, use `"scenario": {"type": "baseline"}`. Older configs and journals without a scenario remain baseline runs. The scenario, operation requirement, and recovery limit cannot be changed when resuming a journal.
-
-Failover acceptance requires one closed outage window for the configured endpoint. After an availability error from that endpoint, the survivor must submit and confirm at least `minSurvivorOperations` new operations before the window closes. Every submission attempt for each qualifying operation must be through the survivor inside that window. Finding a receipt for an earlier or faulted-endpoint submission does not count. The first qualifying confirmation must occur within `recoveryTimeoutMs` of `fault-start`, and both participants must converge at the end.
-
-Reports and CLI summaries expose `scenario` and `acceptanceResult`. Successful real-ledger acceptance is labelled `BASELINE_PASS` or `FAILOVER_PASS`; simulation labels are `SIMULATION_BASELINE_PASS` and `SIMULATION_FAILOVER_PASS`. A healthy baseline cannot earn a failover acceptance label.
-
-| Result | Meaning |
+| Need | Guide |
 | --- | --- |
-| `PASS` | The real-ledger workload converged and the configured baseline or failover acceptance checks passed. Read `acceptanceResult` for the kind of test. |
-| `SIMULATION_PASS` | The same harness checks passed against the local simulation. This does not validate Canton topology, consensus, authentication configuration, or network recovery. |
-| `FAIL` | An observed integrity mismatch, or a closed failover window that missed its acceptance criteria. |
-| `INCONCLUSIVE` | A missing prerequisite, unresolved outcome, deadline, auth problem, or unavailable participant prevented a complete verdict. |
-
-Reports contain operation identities, submission attempts, endpoint errors by category, failover events, operator markers, and client confirmation timestamps. The acceptance evidence includes qualifying operations and the observed recovery interval. Missing or unclosed outage markers remain inconclusive. The largest gap between confirmations includes workload intervals. Neither that gap nor the acceptance recovery interval is an exact ledger commit latency, a production RTO, or an RPO-zero guarantee. A completed workload without final two-participant agreement remains inconclusive.
-
-Exit codes are `0` for a completed command, `1` for failed acceptance, configuration/auth/permission, or other non-availability errors, `2` for unresolved availability, and `3` for integrity failures. `report` exports the stored verdict and exits successfully even if that verdict is inconclusive or failed. Read the result and acceptance fields when automating report consumption.
-
-The current CLI is a single writer on one local machine. Durable local intent survives process restart, not loss of that machine or disk. A production service would need a replicated journal, fenced ownership, managed signing, deployment supervision, and operational monitoring. That is a separate architecture scope.
-
-## Compatibility and verification
-
-The adapter is pinned to `@canton-network/wallet-sdk` 1.5.3. It uses the SDK for key handling and preparation, with explicit HTTP transport for deadlines, provider-neutral authentication, complete snapshots, and execution. Required routes include `/v2/authenticated-user`, `/v2/parties/participant-id`, `/v2/state/connected-synchronizers`, `/v2/packages/{packageId}/status`, `/v2/state/ledger-end`, `/v2/state/active-contracts-page`, and `/v2/interactive-submission/{prepare,executeAndWait}`.
-
-The response shapes are based on the SDK's packaged Ledger API 3.5/3.6 types. Actual deployment compatibility must be checked before the live exercise. Unsupported or incomplete snapshots fail closed. The local protocol simulator intentionally does not implement a full Canton participant or signature authorization engine.
-
-`npm test` covers lost replies, pagination, failover, competing submissions, persisted unknown outcomes, a real process kill/restart, ambiguous root creation, topology attestation, journal locking, auth refresh, error classification, and bounded waits. Daml tests separately exercise the contract. See `docs/engineering.md` for implementation caveats and the final verification record.
-
-## Install a packaged release
-
-This project is not published to npm yet. A maintainer can prepare a versioned tarball and `SHA256SUMS` with:
-
-```sh
-npm run release:prepare
-```
-
-After obtaining a verified tarball, install its named executable without a source build or Daml toolchain:
-
-```sh
-npm install --global ./canton-failover-0.1.0.tgz
-canton-failover
-```
-
-A source checkout can also use `npm link` after `npm run build`. Run the installed command from the directory where you want your profiles and journals. The packaged CLI includes the compiled runtime and verified DAR. Profiles, `.env` files, run databases, and local development data are excluded.
-
-## Develop and verify
-
-```sh
-npm run check
-npm test
-npm run build
-npm run smoke:clean
-npm run smoke:release
-```
-
-The clean-install smoke copies an allowlisted fresh checkout, runs `npm ci`, and starts the demo. The release smoke packs the project, installs it without dev dependencies outside the checkout, and verifies the named executable, version, bundled DAR, and simulated failover report.
-
-GitHub Actions runs these checks on Ubuntu and macOS with Node 24 and 26. The release workflow creates a tarball and checksum artifact on version tags or manual dispatch; it does not publish to npm or create a public GitHub Release. These workflows take effect after the repository is hosted on GitHub. Windows is not currently in the tested matrix. Contract changes additionally require the Daml checks in [the contract guide](contracts/README.md).
+| Understand the components | [Architecture](docs/diagrams/README.md) |
+| Prepare and run a live test | [Setup, outage markers, recovery, and results](docs/running-tests.md) |
+| Configure party hosting and access | [External-party setup](docs/external-party-setup.md) · [Authentication](docs/authentication.md) |
+| Diagnose unexpected behavior | [Known issues](docs/gotchas.md) · [Engineering notes](docs/engineering.md) |
+| Build, package, or contribute | [Development](docs/development.md) · [Contracts](contracts/README.md) · [Verification](docs/verification.md) |

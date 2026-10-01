@@ -18,6 +18,6 @@ The operator introduces and restores infrastructure faults outside this tool and
 
 ## Diagram source and verification
 
-`architecture.json` is the editable Archify source. Its eight source references are pinned to the repository revision recorded in `architecture.receipt.json`. Generated HTML passed all nine showcase artifact checks with zero errors or warnings. Automated browser checks passed at 1440×900, 1600×1000, 1920×1080, and 2048×1320. Light and dark screenshots were also visually reviewed.
+In the source checkout, `architecture.json` is the editable Archify source. Its eight source references are pinned to the repository revision recorded in `architecture.receipt.json`. Generated HTML passed all nine showcase artifact checks with zero errors or warnings. Automated browser checks passed at 1440×900, 1600×1000, 1920×1080, and 2048×1320. Light and dark screenshots were also visually reviewed.
 
 The visual-check files preserve the browser evidence and provide a static GitHub preview. To regenerate, use the Archify skill's validate, deliver, and visual-check commands with this checkout as `--repo-root`; update the pinned revision only after verifying the diagram against that source revision.

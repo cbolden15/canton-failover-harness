@@ -18,7 +18,10 @@
     "config.example.json",
     "contracts/README.md",
     "contracts/artifacts/canton-failover-receipts-0.1.0.dar",
-    ".env.example"
+    ".env.example",
+    "docs/diagrams/README.md",
+    "docs/diagrams/architecture.html",
+    "docs/diagrams/architecture.visual-check.2048x1320.light.png"
   ],
   "engines": {
     "node": ">=24.10.0"

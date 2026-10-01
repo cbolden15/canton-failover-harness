@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Canton failover harness",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "viewBox": [
+      1390,
+      850
+    ],
+    "repository": {
+      "url": "https://github.com/cbolden15/canton-failover-harness",
+      "revision": "87b61aa3b8236af826b926dba2c9386ece21331f",
+      "provider": "github",
+      "link_mode": "web"
+    }
+  },
+  "components": [
+    {
+      "id": "party-signer",
+      "type": "security",
+      "label": "External-party signer",
+      "sublabel": "Private key stays on client",
+      "pos": [
+        40,
+        330
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "src/ledger.ts",
+          "line": 94,
+          "label": "Prepare and sign"
+        }
+      ]
+    },
+    {
+      "id": "workload-runner",
+      "type": "backend",
+      "label": "CLI runner",
+      "sublabel": "Submit, reconcile, switch",
+      "pos": [
+        385,
+        330
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "src/runner.ts",
+          "line": 100,
+          "label": "Workload loop"
+        }
+      ]
+    },
+    {
+      "id": "durable-journal",
+      "type": "database",
+      "label": "SQLite journal",
+      "sublabel": "Intents, attempts, receipts",
+      "pos": [
+        385,
+        670
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "src/journal.ts",
+          "line": 8,
+          "label": "Durable journal"
+        }
+      ]
+    },
+    {
+      "id": "result-files",
+      "type": "external",
+      "label": "JSON / CSV reports",
+      "sublabel": "Verdict and test evidence",
+      "pos": [
+        40,
+        670
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "src/report.ts",
+          "line": 35,
+          "label": "Export results"
+        }
+      ]
+    },
+    {
+      "id": "endpoint-auth",
+      "type": "security",
+      "label": "Identity provider(s)",
+      "sublabel": "Separate endpoint credentials",
+      "pos": [
+        385,
+        65
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "src/transport.ts",
+          "line": 6,
+          "label": "Endpoint token cache"
+        }
+      ]
+    },
+    {
+      "id": "participant-a",
+      "type": "backend",
+      "label": "Participant A",
+      "sublabel": "Hosts the shared party ID",
+      "pos": [
+        765,
+        220
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "docs/external-party-setup.md",
+          "line": 1,
+          "label": "Hosting prerequisite"
+        }
+      ]
+    },
+    {
+      "id": "participant-b",
+      "type": "backend",
+      "label": "Participant B",
+      "sublabel": "Hosts the same party ID",
+      "pos": [
+        765,
+        570
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "docs/external-party-setup.md",
+          "line": 1,
+          "label": "Hosting prerequisite"
+        }
+      ]
+    },
+    {
+      "id": "shared-sync",
+      "type": "cloud",
+      "label": "Shared synchronizer",
+      "sublabel": "Existing Canton infrastructure",
+      "pos": [
+        1135,
+        395
+      ],
+      "size": [
+        225,
+        90
+      ],
+      "sources": [
+        {
+          "path": "docs/external-party-setup.md",
+          "line": 22,
+          "label": "Synchronizer prerequisite"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Client machine / harness",
+      "wraps": [
+        "party-signer",
+        "workload-runner",
+        "durable-journal",
+        "result-files"
+      ],
+      "pad": 30
+    }
+  ],
+  "connections": [
+    {
+      "id": "local-signing",
+      "from": "party-signer",
+      "to": "workload-runner",
+      "label": "sign locally",
+      "variant": "security"
+    },
+    {
+      "id": "token-acquisition",
+      "from": "workload-runner",
+      "to": "endpoint-auth",
+      "label": "OAuth tokens",
+      "variant": "security"
+    },
+    {
+      "id": "journal-recovery",
+      "from": "workload-runner",
+      "to": "durable-journal",
+      "label": "persist / recover",
+      "labelAt": [
+        490,
+        545
+      ]
+    },
+    {
+      "id": "export-evidence",
+      "from": "durable-journal",
+      "to": "result-files",
+      "label": "export"
+    },
+    {
+      "id": "a-api",
+      "from": "workload-runner",
+      "to": "participant-a",
+      "label": "Ledger API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "b-api",
+      "from": "workload-runner",
+      "to": "participant-b",
+      "label": "Ledger API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "a-sync",
+      "from": "participant-a",
+      "to": "shared-sync",
+      "label": "Canton protocol"
+    },
+    {
+      "id": "b-sync",
+      "from": "participant-b",
+      "to": "shared-sync",
+      "label": "Canton protocol"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One party, two hosts",
+      "items": [
+        "Both participants host one external identity.",
+        "Confirming hosts; participant threshold 1."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Safe recovery",
+      "items": [
+        "Advance consumes the same input on retries.",
+        "A missing reply remains an unknown outcome."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Operator controls the fault",
+      "items": [
+        "Introduce the outage; record start/end markers.",
+        "Pass needs fresh survivor work and convergence."
+      ]
+    }
+  ]
+}

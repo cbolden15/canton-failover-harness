@@ -1,0 +1,51 @@
+{
+  "mode": "testnet",
+  "party": "REPLACE_WITH_EXTERNAL_PARTY_ID",
+  "synchronizerId": "REPLACE_WITH_SYNCHRONIZER_ID",
+  "packageId": "28dfdd1d90c99f39342f781edd003826f37909f5aa061a2aede63a37ba8085eb",
+  "signingKeyEnv": "CANTON_TEST_SIGNING_KEY",
+  "signingFingerprint": "REPLACE_WITH_SIGNING_KEY_FINGERPRINT",
+  "topologyConfirmed": false,
+  "endpoints": {
+    "A": {
+      "url": "https://participant-a.example.invalid",
+      "participantId": "REPLACE_WITH_PARTICIPANT_A_ID",
+      "auth": {
+        "type": "oidc",
+        "tokenUrl": "https://tenant.example.invalid/oauth/token",
+        "audience": "REPLACE_WITH_AUDIENCE",
+        "clientId": "REPLACE_WITH_CLIENT_ID",
+        "clientSecretEnv": "CANTON_A_CLIENT_SECRET",
+        "tokenEndpointAuthMethod": "client_secret_post"
+      }
+    },
+    "B": {
+      "url": "https://participant-b.example.invalid",
+      "participantId": "REPLACE_WITH_PARTICIPANT_B_ID",
+      "auth": {
+        "type": "oidc",
+        "tokenUrl": "https://tenant.example.invalid/oauth/token",
+        "audience": "REPLACE_WITH_AUDIENCE",
+        "clientId": "REPLACE_WITH_CLIENT_ID",
+        "clientSecretEnv": "CANTON_B_CLIENT_SECRET",
+        "tokenEndpointAuthMethod": "client_secret_post"
+      }
+    }
+  },
+  "primary": "A",
+  "scenario": {
+    "type": "failover",
+    "faultedEndpoint": "A",
+    "minSurvivorOperations": 1,
+    "recoveryTimeoutMs": 60000
+  },
+  "count": 300,
+  "intervalMs": 2000,
+  "requestTimeoutMs": 10000,
+  "pollMs": 2000,
+  "failureThreshold": 2,
+  "retryAfterMs": 10000,
+  "operationTimeoutMs": 120000,
+  "runTimeoutMs": 1800000,
+  "convergenceTimeoutMs": 120000
+}

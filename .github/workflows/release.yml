@@ -1,0 +1,33 @@
+name: Prepare release artifact
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run smoke:clean
+      - run: npm run smoke:release
+      - run: npm run release:prepare
+      - uses: actions/upload-artifact@v7
+        with:
+          name: canton-failover-release
+          path: |
+            release/*.tgz
+            release/SHA256SUMS
+          if-no-files-found: error

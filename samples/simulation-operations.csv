@@ -1,0 +1,9 @@
+sequence,status,inputStateId,receiptId,successorId
+"1","committed","887aa97a-5ab2-4895-86b4-927867d9670b","95265ac5-2afa-4670-9f1a-2b14dc0a06c7","e6c7b735-a80e-48f7-993c-7089d49cc844"
+"2","committed","e6c7b735-a80e-48f7-993c-7089d49cc844","ce4786dc-bd98-43e1-baf0-903136ceac60","b4d26a5a-559b-475f-ac15-30f66575765f"
+"3","committed","b4d26a5a-559b-475f-ac15-30f66575765f","2d2a31b1-7644-45fc-896f-40d45957a56a","7f4e951e-cde8-4ea3-9904-cc6860afcb3d"
+"4","committed","7f4e951e-cde8-4ea3-9904-cc6860afcb3d","3c10c023-bfdd-4a47-8b6c-5498a25ef35c","d123443a-a405-40c3-981d-3ffa858e08f6"
+"5","committed","d123443a-a405-40c3-981d-3ffa858e08f6","a7bd2c15-14e2-420e-ab32-26dc4a7862e7","758078d7-6dd6-4c04-bab8-4a6adb77afaf"
+"6","committed","758078d7-6dd6-4c04-bab8-4a6adb77afaf","7e9dd20d-56b1-4dba-bb19-f32c58ccb599","b94ac2d7-7a70-4a3f-b4b0-d995ff59a3a4"
+"7","committed","b94ac2d7-7a70-4a3f-b4b0-d995ff59a3a4","f7bb5426-b792-465f-ba8b-0c66b1a8f753","b47501d9-0915-4763-a59e-67e4244c1d4b"
+"8","committed","b47501d9-0915-4763-a59e-67e4244c1d4b","d6998fae-2192-4303-975b-8e28acebb519","9a9b8a72-c31e-49a5-bda1-32421d8d9291"

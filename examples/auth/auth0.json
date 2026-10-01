@@ -1,0 +1,8 @@
+{
+  "type": "oidc",
+  "tokenUrl": "https://YOUR_TENANT.auth0.com/oauth/token",
+  "clientId": "REPLACE_WITH_CLIENT_ID",
+  "clientSecretEnv": "CANTON_A_CLIENT_SECRET",
+  "tokenEndpointAuthMethod": "client_secret_post",
+  "audience": "REPLACE_WITH_CANTON_API_AUDIENCE"
+}

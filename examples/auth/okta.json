@@ -1,0 +1,8 @@
+{
+  "type": "oidc",
+  "tokenUrl": "https://YOUR_ORG.okta.com/oauth2/YOUR_AUTH_SERVER_ID/v1/token",
+  "clientId": "REPLACE_WITH_CLIENT_ID",
+  "clientSecretEnv": "CANTON_A_CLIENT_SECRET",
+  "tokenEndpointAuthMethod": "client_secret_basic",
+  "scope": "REPLACE_WITH_CUSTOM_CANTON_SCOPE"
+}

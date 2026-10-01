@@ -1,0 +1,14 @@
+node_modules/
+dist/
+runs/
+profiles/
+release/
+*.tgz
+.env*
+!.env.example
+*.sqlite*
+*.key
+**/.daml/
+**/.cache/
+.codegraph/
+.DS_Store

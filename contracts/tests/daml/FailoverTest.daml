@@ -1,0 +1,87 @@
+module FailoverTest where
+
+import Daml.Script
+import Failover
+
+testValidTransition : Script ()
+testValidTransition = do
+  owner <- allocateParty "owner"
+  stateId <- submit owner do
+    createCmd RunState with
+      owner
+      runId = "run-1"
+      nextSequence = 1
+      previousReceiptId = None
+  (receiptId, successorId) <- submit owner do
+    exerciseCmd stateId Advance with
+      sequence = 1
+      payloadDigest = "digest-1"
+  receipt <- queryContractId owner receiptId
+  successor <- queryContractId owner successorId
+  case receipt of
+    Some r -> do
+      assert (r.owner == owner)
+      assert (r.runId == "run-1")
+      assert (r.sequence == 1)
+      assert (r.operationId == "run-1:1")
+      assert (r.payloadDigest == "digest-1")
+      assert (r.inputStateId == stateId)
+      assert (r.previousReceiptId == None)
+    None -> abort "Receipt was not created"
+  case successor of
+    Some s -> do
+      assert (s.nextSequence == 2)
+      assert (s.previousReceiptId == Some receiptId)
+    None -> abort "Successor state was not created"
+
+testWrongSequence : Script ()
+testWrongSequence = do
+  owner <- allocateParty "owner"
+  stateId <- submit owner do
+    createCmd RunState with
+      owner
+      runId = "run-2"
+      nextSequence = 1
+      previousReceiptId = None
+  submitMustFail owner do
+    exerciseCmd stateId Advance with
+      sequence = 2
+      payloadDigest = "digest-2"
+  _ <- submit owner do
+    exerciseCmd stateId Advance with
+      sequence = 1
+      payloadDigest = "digest-1"
+  pure ()
+
+testUnauthorizedParty : Script ()
+testUnauthorizedParty = do
+  owner <- allocateParty "owner"
+  intruder <- allocateParty "intruder"
+  stateId <- submit owner do
+    createCmd RunState with
+      owner
+      runId = "run-3"
+      nextSequence = 1
+      previousReceiptId = None
+  submitMustFail intruder do
+    exerciseCmd stateId Advance with
+      sequence = 1
+      payloadDigest = "digest-1"
+
+testSecondConsumption : Script ()
+testSecondConsumption = do
+  owner <- allocateParty "owner"
+  stateId <- submit owner do
+    createCmd RunState with
+      owner
+      runId = "run-4"
+      nextSequence = 1
+      previousReceiptId = None
+  _ <- submit owner do
+    exerciseCmd stateId Advance with
+      sequence = 1
+      payloadDigest = "digest-1"
+  submitMustFail owner do
+    exerciseCmd stateId Advance with
+      sequence = 1
+      payloadDigest = "digest-1"

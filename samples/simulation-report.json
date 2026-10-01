@@ -1,0 +1,697 @@
+{
+  "result": "SIMULATION_PASS",
+  "scenario": {
+    "type": "failover",
+    "faultedEndpoint": "A",
+    "minSurvivorOperations": 2,
+    "recoveryTimeoutMs": 2000
+  },
+  "acceptanceResult": "SIMULATION_FAILOVER_PASS",
+  "acceptance": {
+    "status": "eligible",
+    "reason": "Fresh survivor progress meets the configured outage acceptance bounds",
+    "qualifyingSequences": [
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "recoveryMs": 49,
+    "window": {
+      "endpoint": "A",
+      "startEventId": 12,
+      "endEventId": 54,
+      "startedAt": "2026-10-01T01:21:10.862Z",
+      "endedAt": "2026-10-01T01:21:11.090Z"
+    }
+  },
+  "mode": "simulation",
+  "runId": "9bc5ed19-e766-49ce-bb8b-b49e14c3fe45",
+  "plannedTotal": 8,
+  "committed": 8,
+  "unresolved": [],
+  "bootstrap": "confirmed",
+  "activeEndpoint": "B",
+  "createdAt": "2026-10-01T01:21:10.741Z",
+  "completedAt": "2026-10-01T01:21:11.107Z",
+  "failovers": 1,
+  "longestObservedCommitGapMs": 36,
+  "measurement": "Client confirmation timestamps; commit gaps include configured workload intervals. Outage windows are operator-attested; survivor progress and recovery are client-observed. This is not ledger finality latency or a production RTO guarantee.",
+  "operations": [
+    {
+      "sequence": 1,
+      "inputStateId": "887aa97a-5ab2-4895-86b4-927867d9670b",
+      "payloadDigest": "7ee67f03e155f4fc0750bbef362d11c57e2e78c929e0b8a234d6099296a25c3d",
+      "status": "committed",
+      "receiptId": "95265ac5-2afa-4670-9f1a-2b14dc0a06c7",
+      "successorId": "e6c7b735-a80e-48f7-993c-7089d49cc844"
+    },
+    {
+      "sequence": 2,
+      "inputStateId": "e6c7b735-a80e-48f7-993c-7089d49cc844",
+      "payloadDigest": "0f15e11455d3b071f489cc8bc4bdf65eff587d6ee58c86c78f4cab2242cedff2",
+      "status": "committed",
+      "receiptId": "ce4786dc-bd98-43e1-baf0-903136ceac60",
+      "successorId": "b4d26a5a-559b-475f-ac15-30f66575765f"
+    },
+    {
+      "sequence": 3,
+      "inputStateId": "b4d26a5a-559b-475f-ac15-30f66575765f",
+      "payloadDigest": "7212ed2b08e36625386e86ef9a2d0bfc2345550a76e4b5ae8f3e432125525cff",
+      "status": "committed",
+      "receiptId": "2d2a31b1-7644-45fc-896f-40d45957a56a",
+      "successorId": "7f4e951e-cde8-4ea3-9904-cc6860afcb3d"
+    },
+    {
+      "sequence": 4,
+      "inputStateId": "7f4e951e-cde8-4ea3-9904-cc6860afcb3d",
+      "payloadDigest": "b4f886f63b4f672f06a9c7203a436c5072c85854e5e14d1fcba875cfbc21d63c",
+      "status": "committed",
+      "receiptId": "3c10c023-bfdd-4a47-8b6c-5498a25ef35c",
+      "successorId": "d123443a-a405-40c3-981d-3ffa858e08f6"
+    },
+    {
+      "sequence": 5,
+      "inputStateId": "d123443a-a405-40c3-981d-3ffa858e08f6",
+      "payloadDigest": "41cd956c8720f394963fe46b08772f02ea30eb0af3171fff591e961cc57e77f6",
+      "status": "committed",
+      "receiptId": "a7bd2c15-14e2-420e-ab32-26dc4a7862e7",
+      "successorId": "758078d7-6dd6-4c04-bab8-4a6adb77afaf"
+    },
+    {
+      "sequence": 6,
+      "inputStateId": "758078d7-6dd6-4c04-bab8-4a6adb77afaf",
+      "payloadDigest": "5496e8ffb05e13a10bb12d2e02862a5a6dd8f0b8c140878b6b07aa4cdd1ffe7b",
+      "status": "committed",
+      "receiptId": "7e9dd20d-56b1-4dba-bb19-f32c58ccb599",
+      "successorId": "b94ac2d7-7a70-4a3f-b4b0-d995ff59a3a4"
+    },
+    {
+      "sequence": 7,
+      "inputStateId": "b94ac2d7-7a70-4a3f-b4b0-d995ff59a3a4",
+      "payloadDigest": "874721a597f123ee80518a670302f7900770e55c017596504bcb61d19b1204dc",
+      "status": "committed",
+      "receiptId": "f7bb5426-b792-465f-ba8b-0c66b1a8f753",
+      "successorId": "b47501d9-0915-4763-a59e-67e4244c1d4b"
+    },
+    {
+      "sequence": 8,
+      "inputStateId": "b47501d9-0915-4763-a59e-67e4244c1d4b",
+      "payloadDigest": "5ac3bd2cc10d3c8d0171a414c83001e5956e473919df25c45498589b9bcf06c7",
+      "status": "committed",
+      "receiptId": "d6998fae-2192-4303-975b-8e28acebb519",
+      "successorId": "9a9b8a72-c31e-49a5-bda1-32421d8d9291"
+    }
+  ],
+  "attempts": [
+    {
+      "id": "5c8bf46f-49c0-479e-95ae-8c34972f3a8f",
+      "sequence": 0,
+      "endpoint": "A",
+      "startedAt": "2026-10-01T01:21:10.806Z",
+      "finishedAt": "2026-10-01T01:21:10.809Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "6474fdc6-52f9-4182-b17c-7487639cbe34",
+      "sequence": 1,
+      "endpoint": "A",
+      "startedAt": "2026-10-01T01:21:10.833Z",
+      "finishedAt": "2026-10-01T01:21:10.835Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "f4c9d65c-bb20-44c6-9656-0fdeab76b7f2",
+      "sequence": 2,
+      "endpoint": "A",
+      "startedAt": "2026-10-01T01:21:10.860Z",
+      "finishedAt": "2026-10-01T01:21:10.864Z",
+      "result": "availability"
+    },
+    {
+      "id": "d46415f8-279f-420c-97ff-8c63334fe579",
+      "sequence": 3,
+      "endpoint": "B",
+      "startedAt": "2026-10-01T01:21:10.897Z",
+      "finishedAt": "2026-10-01T01:21:10.900Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "fd09fd40-b42b-480e-847e-7623b998b277",
+      "sequence": 4,
+      "endpoint": "B",
+      "startedAt": "2026-10-01T01:21:10.926Z",
+      "finishedAt": "2026-10-01T01:21:10.929Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "1d88b15c-0984-4c28-97d9-bb116e37e76f",
+      "sequence": 5,
+      "endpoint": "B",
+      "startedAt": "2026-10-01T01:21:10.954Z",
+      "finishedAt": "2026-10-01T01:21:10.957Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "878fe64e-73be-493b-aa3d-cd13f39d012f",
+      "sequence": 6,
+      "endpoint": "B",
+      "startedAt": "2026-10-01T01:21:10.983Z",
+      "finishedAt": "2026-10-01T01:21:10.985Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "9b31dd5a-dddc-47ea-a071-6ff9fe0491bd",
+      "sequence": 7,
+      "endpoint": "B",
+      "startedAt": "2026-10-01T01:21:11.011Z",
+      "finishedAt": "2026-10-01T01:21:11.014Z",
+      "result": "acknowledged"
+    },
+    {
+      "id": "f49938c8-975c-4cf7-8c38-fec9ae0e238d",
+      "sequence": 8,
+      "endpoint": "B",
+      "startedAt": "2026-10-01T01:21:11.038Z",
+      "finishedAt": "2026-10-01T01:21:11.040Z",
+      "result": "acknowledged"
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "at": "2026-10-01T01:21:10.742Z",
+      "kind": "run_created",
+      "data": {
+        "runId": "9bc5ed19-e766-49ce-bb8b-b49e14c3fe45",
+        "count": 8,
+        "mode": "simulation"
+      }
+    },
+    {
+      "id": 2,
+      "at": "2026-10-01T01:21:10.806Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 0,
+        "endpoint": "A",
+        "attemptId": "5c8bf46f-49c0-479e-95ae-8c34972f3a8f"
+      }
+    },
+    {
+      "id": 3,
+      "at": "2026-10-01T01:21:10.809Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "5c8bf46f-49c0-479e-95ae-8c34972f3a8f",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 4,
+      "at": "2026-10-01T01:21:10.819Z",
+      "kind": "root_confirmed",
+      "data": {
+        "contractId": "887aa97a-5ab2-4895-86b4-927867d9670b"
+      }
+    },
+    {
+      "id": 5,
+      "at": "2026-10-01T01:21:10.823Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 1
+      }
+    },
+    {
+      "id": 6,
+      "at": "2026-10-01T01:21:10.833Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 1,
+        "endpoint": "A",
+        "attemptId": "6474fdc6-52f9-4182-b17c-7487639cbe34"
+      }
+    },
+    {
+      "id": 7,
+      "at": "2026-10-01T01:21:10.835Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "6474fdc6-52f9-4182-b17c-7487639cbe34",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 8,
+      "at": "2026-10-01T01:21:10.846Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 1,
+        "receiptId": "95265ac5-2afa-4670-9f1a-2b14dc0a06c7",
+        "endpoint": "A"
+      }
+    },
+    {
+      "id": 9,
+      "at": "2026-10-01T01:21:10.846Z",
+      "kind": "progress",
+      "data": {
+        "completed": 1,
+        "total": 8
+      }
+    },
+    {
+      "id": 10,
+      "at": "2026-10-01T01:21:10.853Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 2
+      }
+    },
+    {
+      "id": 11,
+      "at": "2026-10-01T01:21:10.860Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 2,
+        "endpoint": "A",
+        "attemptId": "f4c9d65c-bb20-44c6-9656-0fdeab76b7f2"
+      }
+    },
+    {
+      "id": 12,
+      "at": "2026-10-01T01:21:10.862Z",
+      "kind": "fault_start",
+      "data": {
+        "endpoint": "A",
+        "simulated": true,
+        "operatorAttested": true
+      }
+    },
+    {
+      "id": 13,
+      "at": "2026-10-01T01:21:10.864Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "f4c9d65c-bb20-44c6-9656-0fdeab76b7f2",
+        "result": "availability"
+      }
+    },
+    {
+      "id": 14,
+      "at": "2026-10-01T01:21:10.864Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 2,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 15,
+      "at": "2026-10-01T01:21:10.872Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 2,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 16,
+      "at": "2026-10-01T01:21:10.873Z",
+      "kind": "failover",
+      "data": {
+        "from": "A",
+        "to": "B",
+        "sequence": 2
+      }
+    },
+    {
+      "id": 17,
+      "at": "2026-10-01T01:21:10.882Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 2,
+        "receiptId": "ce4786dc-bd98-43e1-baf0-903136ceac60",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 18,
+      "at": "2026-10-01T01:21:10.882Z",
+      "kind": "progress",
+      "data": {
+        "completed": 2,
+        "total": 8
+      }
+    },
+    {
+      "id": 19,
+      "at": "2026-10-01T01:21:10.890Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 3,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 20,
+      "at": "2026-10-01T01:21:10.890Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 3
+      }
+    },
+    {
+      "id": 21,
+      "at": "2026-10-01T01:21:10.897Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 3,
+        "endpoint": "B",
+        "attemptId": "d46415f8-279f-420c-97ff-8c63334fe579"
+      }
+    },
+    {
+      "id": 22,
+      "at": "2026-10-01T01:21:10.900Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "d46415f8-279f-420c-97ff-8c63334fe579",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 23,
+      "at": "2026-10-01T01:21:10.911Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 3,
+        "receiptId": "2d2a31b1-7644-45fc-896f-40d45957a56a",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 24,
+      "at": "2026-10-01T01:21:10.911Z",
+      "kind": "progress",
+      "data": {
+        "completed": 3,
+        "total": 8
+      }
+    },
+    {
+      "id": 25,
+      "at": "2026-10-01T01:21:10.920Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 4,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 26,
+      "at": "2026-10-01T01:21:10.920Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 4
+      }
+    },
+    {
+      "id": 27,
+      "at": "2026-10-01T01:21:10.926Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 4,
+        "endpoint": "B",
+        "attemptId": "fd09fd40-b42b-480e-847e-7623b998b277"
+      }
+    },
+    {
+      "id": 28,
+      "at": "2026-10-01T01:21:10.929Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "fd09fd40-b42b-480e-847e-7623b998b277",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 29,
+      "at": "2026-10-01T01:21:10.939Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 4,
+        "receiptId": "3c10c023-bfdd-4a47-8b6c-5498a25ef35c",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 30,
+      "at": "2026-10-01T01:21:10.939Z",
+      "kind": "progress",
+      "data": {
+        "completed": 4,
+        "total": 8
+      }
+    },
+    {
+      "id": 31,
+      "at": "2026-10-01T01:21:10.947Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 5,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 32,
+      "at": "2026-10-01T01:21:10.947Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 5
+      }
+    },
+    {
+      "id": 33,
+      "at": "2026-10-01T01:21:10.954Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 5,
+        "endpoint": "B",
+        "attemptId": "1d88b15c-0984-4c28-97d9-bb116e37e76f"
+      }
+    },
+    {
+      "id": 34,
+      "at": "2026-10-01T01:21:10.957Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "1d88b15c-0984-4c28-97d9-bb116e37e76f",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 35,
+      "at": "2026-10-01T01:21:10.967Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 5,
+        "receiptId": "a7bd2c15-14e2-420e-ab32-26dc4a7862e7",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 36,
+      "at": "2026-10-01T01:21:10.968Z",
+      "kind": "progress",
+      "data": {
+        "completed": 5,
+        "total": 8
+      }
+    },
+    {
+      "id": 37,
+      "at": "2026-10-01T01:21:10.976Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 6,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 38,
+      "at": "2026-10-01T01:21:10.976Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 6
+      }
+    },
+    {
+      "id": 39,
+      "at": "2026-10-01T01:21:10.983Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 6,
+        "endpoint": "B",
+        "attemptId": "878fe64e-73be-493b-aa3d-cd13f39d012f"
+      }
+    },
+    {
+      "id": 40,
+      "at": "2026-10-01T01:21:10.986Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "878fe64e-73be-493b-aa3d-cd13f39d012f",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 41,
+      "at": "2026-10-01T01:21:10.996Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 6,
+        "receiptId": "7e9dd20d-56b1-4dba-bb19-f32c58ccb599",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 42,
+      "at": "2026-10-01T01:21:10.996Z",
+      "kind": "progress",
+      "data": {
+        "completed": 6,
+        "total": 8
+      }
+    },
+    {
+      "id": 43,
+      "at": "2026-10-01T01:21:11.004Z",
+      "kind": "endpoint_error",
+      "data": {
+        "endpoint": "A",
+        "sequence": 7,
+        "kind": "availability"
+      }
+    },
+    {
+      "id": 44,
+      "at": "2026-10-01T01:21:11.004Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 7
+      }
+    },
+    {
+      "id": 45,
+      "at": "2026-10-01T01:21:11.011Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 7,
+        "endpoint": "B",
+        "attemptId": "9b31dd5a-dddc-47ea-a071-6ff9fe0491bd"
+      }
+    },
+    {
+      "id": 46,
+      "at": "2026-10-01T01:21:11.014Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "9b31dd5a-dddc-47ea-a071-6ff9fe0491bd",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 47,
+      "at": "2026-10-01T01:21:11.026Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 7,
+        "receiptId": "f7bb5426-b792-465f-ba8b-0c66b1a8f753",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 48,
+      "at": "2026-10-01T01:21:11.026Z",
+      "kind": "progress",
+      "data": {
+        "completed": 7,
+        "total": 8
+      }
+    },
+    {
+      "id": 49,
+      "at": "2026-10-01T01:21:11.031Z",
+      "kind": "operation_planned",
+      "data": {
+        "sequence": 8
+      }
+    },
+    {
+      "id": 50,
+      "at": "2026-10-01T01:21:11.038Z",
+      "kind": "dispatching",
+      "data": {
+        "sequence": 8,
+        "endpoint": "B",
+        "attemptId": "f49938c8-975c-4cf7-8c38-fec9ae0e238d"
+      }
+    },
+    {
+      "id": 51,
+      "at": "2026-10-01T01:21:11.041Z",
+      "kind": "attempt_result",
+      "data": {
+        "attemptId": "f49938c8-975c-4cf7-8c38-fec9ae0e238d",
+        "result": "acknowledged"
+      }
+    },
+    {
+      "id": 52,
+      "at": "2026-10-01T01:21:11.052Z",
+      "kind": "operation_committed",
+      "data": {
+        "sequence": 8,
+        "receiptId": "d6998fae-2192-4303-975b-8e28acebb519",
+        "endpoint": "B"
+      }
+    },
+    {
+      "id": 53,
+      "at": "2026-10-01T01:21:11.053Z",
+      "kind": "progress",
+      "data": {
+        "completed": 8,
+        "total": 8
+      }
+    },
+    {
+      "id": 54,
+      "at": "2026-10-01T01:21:11.090Z",
+      "kind": "fault_end",
+      "data": {
+        "endpoint": "A",
+        "simulated": true,
+        "operatorAttested": true
+      }
+    },
+    {
+      "id": 55,
+      "at": "2026-10-01T01:21:11.107Z",
+      "kind": "converged",
+      "data": {
+        "count": 8
+      }
+    }
+  ]
+}

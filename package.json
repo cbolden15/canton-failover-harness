@@ -1,0 +1,55 @@
+{
+  "name": "canton-failover",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "canton-failover": "bin/canton-failover.mjs"
+  },
+  "files": [
+    "bin/canton-failover.mjs",
+    "scripts/runtime.mjs",
+    "scripts/start.mjs",
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.js.map",
+    "docs/*.md",
+    "examples/auth/*.json",
+    "config.example.json",
+    "contracts/README.md",
+    "contracts/artifacts/canton-failover-receipts-0.1.0.dar",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=24.10.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "cli": "tsx src/cli.ts",
+    "start": "node scripts/start.mjs",
+    "prepack": "npm run build",
+    "smoke:clean": "node scripts/smoke-clean.mjs",
+    "smoke:release": "node scripts/smoke-release.mjs",
+    "release:prepare": "node scripts/release-prepare.mjs"
+  },
+  "dependencies": {
+    "@canton-network/core-ledger-client-types": "1.13.0",
+    "@canton-network/core-provider-dapp": "1.13.0",
+    "@canton-network/core-splice-provider": "1.13.0",
+    "@canton-network/core-types": "1.13.0",
+    "@canton-network/wallet-sdk": "1.5.3",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "@metamask/utils": {
+      "uuid": "11.1.1"
+    }
+  }
+}

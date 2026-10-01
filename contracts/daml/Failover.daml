@@ -1,0 +1,44 @@
+module Failover where
+
+template RunState
+  with
+    owner : Party
+    runId : Text
+    nextSequence : Int
+    previousReceiptId : Optional (ContractId Receipt)
+  where
+    signatory owner
+
+    choice Advance : (ContractId Receipt, ContractId RunState)
+      with
+        sequence : Int
+        payloadDigest : Text
+      controller owner
+      do
+        assertMsg "Unexpected receipt sequence" (sequence == nextSequence)
+        receiptId <- create Receipt with
+          owner
+          runId
+          sequence
+          operationId = runId <> ":" <> show sequence
+          payloadDigest
+          inputStateId = self
+          previousReceiptId
+        successorId <- create RunState with
+          owner
+          runId
+          nextSequence = nextSequence + 1
+          previousReceiptId = Some receiptId
+        pure (receiptId, successorId)
+
+template Receipt
+  with
+    owner : Party
+    runId : Text
+    sequence : Int
+    operationId : Text
+    payloadDigest : Text
+    inputStateId : ContractId RunState
+    previousReceiptId : Optional (ContractId Receipt)
+  where
+    signatory owner

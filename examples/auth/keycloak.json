@@ -1,0 +1,7 @@
+{
+  "type": "oidc",
+  "tokenUrl": "https://keycloak.example.invalid/realms/YOUR_REALM/protocol/openid-connect/token",
+  "clientId": "REPLACE_WITH_SERVICE_ACCOUNT_CLIENT_ID",
+  "clientSecretEnv": "CANTON_A_CLIENT_SECRET",
+  "tokenEndpointAuthMethod": "client_secret_basic"
+}

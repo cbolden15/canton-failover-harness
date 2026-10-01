@@ -1,12 +1,19 @@
 # Canton failover harness
 
-Test whether a workload can continue through either of two Canton participants hosting **the same external party ID**. The CLI submits signed test transactions, reconciles uncertain outcomes, and verifies receipt agreement after recovery.
+Test whether your Canton workload can keep making progress when one of two participants hosting **the same external party ID** becomes unavailable.
 
-This is a test tool. Operators control infrastructure faults and prepare participant topology.
+This CLI is for operators testing a dual-participant setup. It runs a signed test workload, switches participants when needed, and produces evidence of what happened during the outage and after recovery. Start with the credential-free local demo, then configure it for your own participants.
 
-[![Architecture: a client signer, runner, and SQLite journal connect to two participants hosting one party on a shared synchronizer](docs/diagrams/architecture.png)](https://cbolden15.github.io/canton-failover-harness/)
+## What it tests
 
-[How it works](docs/diagrams/README.md) · [Explore the interactive diagram](https://cbolden15.github.io/canton-failover-harness/)
+- **Continued progress:** can the surviving participant submit and confirm new operations while the other is unavailable?
+- **Recovery time:** does the first qualifying survivor confirmation arrive within the limit you configured?
+- **Safe retries:** uncertain submissions are reconciled against ledger receipts before the workload advances. Retries preserve the operation identity and input contract.
+- **Agreement after recovery:** do both participants report the expected receipt chain and final state?
+
+Live runs save a resumable SQLite journal and JSON/CSV reports with submission attempts, failover events, outage markers, and a pass, fail, or inconclusive result. A failover pass requires fresh survivor operations during the marked outage and agreement from both participants afterward.
+
+You prepare the shared-party topology and introduce and restore infrastructure faults. The harness drives the test workload and evaluates the evidence; it is not a production failover service or a throughput benchmark.
 
 ## Try it
 
@@ -34,6 +41,14 @@ npm start -- start --profile testnet --env-file .env
 Use the profile name you chose. Environment files load only with `--env-file`; omit it when credentials are already in your environment. Start with a healthy baseline, then follow the [outage and recovery procedure](docs/running-tests.md#run-and-recover).
 
 **Keep your journal.** Resume interrupted or uncertain runs with the same journal; never create another root to clear an error.
+
+## How it works
+
+The CLI runs on your laptop or a separate machine. It signs locally, records each operation in a SQLite journal, and sends transactions through either participant. A consuming receipt contract guards against duplicate state transitions when an operation is retried.
+
+[![Architecture: a client signer, runner, and SQLite journal connect to two participants hosting one party on a shared synchronizer](docs/diagrams/architecture.png)](https://cbolden15.github.io/canton-failover-harness/)
+
+[Explore the interactive diagram](https://cbolden15.github.io/canton-failover-harness/)
 
 ## Documentation
 

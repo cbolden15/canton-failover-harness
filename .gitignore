@@ -12,3 +12,8 @@ release/
 **/.cache/
 .codegraph/
 .DS_Store
+_site/
+docs/diagrams/*.receipt.json
+docs/diagrams/*.visual-check.*
+*.log
+coverage/

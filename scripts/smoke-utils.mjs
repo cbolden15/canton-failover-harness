@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export const root = fileURLToPath(new URL('../', import.meta.url));
-const diagramFiles = ['docs/diagrams/README.md', 'docs/diagrams/architecture.html', 'docs/diagrams/architecture.visual-check.2048x1320.light.png'];
+const diagramFiles = ['docs/diagrams/README.md', 'docs/diagrams/architecture.html', 'docs/diagrams/architecture.png'];
 export const darFile = 'contracts/artifacts/canton-failover-receipts-0.1.0.dar';
 export const packageMetadata = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 

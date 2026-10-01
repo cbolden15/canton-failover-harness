@@ -21,7 +21,7 @@
     ".env.example",
     "docs/diagrams/README.md",
     "docs/diagrams/architecture.html",
-    "docs/diagrams/architecture.visual-check.2048x1320.light.png"
+    "docs/diagrams/architecture.png"
   ],
   "engines": {
     "node": ">=24.10.0"

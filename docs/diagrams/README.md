@@ -1,8 +1,8 @@
 # Architecture overview
 
-Open `architecture.html` in a browser for the interactive diagram. It is self-contained; no server or Archify installation is needed to view it. This is a schematic of a live test environment, not proof that a particular deployment has been configured correctly.
+Open the [interactive diagram](https://cbolden15.github.io/canton-failover-harness/), or open the bundled `architecture.html` locally. It is self-contained; no server or Archify installation is needed to view it. This is a schematic of a live test environment, not proof that a particular deployment has been configured correctly.
 
-![Canton failover harness architecture](architecture.visual-check.2048x1320.light.png)
+![Canton failover harness architecture](architecture.png)
 
 ## Read the diagram
 
@@ -16,8 +16,12 @@ The local SQLite journal records intent before submission and an unknown attempt
 
 The operator introduces and restores infrastructure faults outside this tool and records outage markers. Failover acceptance requires fresh survivor operations inside the marked window, an observed outage, the configured recovery bound, and final agreement from both participants. JSON/CSV reports are exported from the journal. Simulation reports remain explicitly labelled simulation.
 
-## Diagram source and verification
+## Maintain the diagram
 
-In the source checkout, `architecture.json` is the editable Archify source. Its eight source references are pinned to the repository revision recorded in `architecture.receipt.json`. Generated HTML passed all nine showcase artifact checks with zero errors or warnings. Automated browser checks passed at 1440×900, 1600×1000, 1920×1080, and 2048×1320. Light and dark screenshots were also visually reviewed.
+`architecture.json` is the editable Archify source. Its source references are pinned to the repository revision recorded in the specification. `architecture.html` is the standalone viewer and `architecture.png` is the README preview.
 
-The visual-check files preserve the browser evidence and provide a static GitHub preview. To regenerate, use the Archify skill's validate, deliver, and visual-check commands with this checkout as `--repo-root`; update the pinned revision only after verifying the diagram against that source revision.
+The diagram passed all nine showcase artifact checks, browser containment checks at four desktop sizes, and visual review in light and dark themes. Generated review receipts and screenshots are local verification artifacts and are not distributed with the project.
+
+To regenerate, use the Archify skill's validate, deliver, and visual-check commands with this checkout as `--repo-root`. Update the pinned revision only after checking the diagram against that source revision. Keep verification sidecars outside the repository, or leave them ignored.
+
+The Pages workflow publishes only the standalone HTML as `index.html`. Pushing changes to the diagram on `main` updates the hosted viewer automatically.

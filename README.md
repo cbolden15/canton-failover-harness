@@ -4,9 +4,9 @@ Test whether a workload can continue through either of two Canton participants h
 
 This is a test tool. Operators control infrastructure faults and prepare participant topology.
 
-[![Architecture: a client signer, runner, and SQLite journal connect to two participants hosting one party on a shared synchronizer](docs/diagrams/architecture.visual-check.2048x1320.light.png)](docs/diagrams/README.md)
+[![Architecture: a client signer, runner, and SQLite journal connect to two participants hosting one party on a shared synchronizer](docs/diagrams/architecture.png)](https://cbolden15.github.io/canton-failover-harness/)
 
-[How it works](docs/diagrams/README.md) · [Download the interactive diagram](docs/diagrams/architecture.html) and open it in a browser.
+[How it works](docs/diagrams/README.md) · [Explore the interactive diagram](https://cbolden15.github.io/canton-failover-harness/)
 
 ## Try it
 

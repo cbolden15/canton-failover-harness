@@ -155,6 +155,9 @@ test('default dashboard configures live connections without files, keeps secrets
   const checked = await until(s => !s.running && s.live.readiness);
   assert.equal(checked.live.readiness.ready, true);
   assert.equal(simulator.executions.length, 0, 'setup and connection checks never write to the ledger');
+  const detected = await get('/api/live/setup');
+  assert.deepEqual(detected.runs[0].credentials, { signingKey: true, A: true, B: true });
+  assert.equal((await post('/api/live/configure', { savedRun: selected.id })).status, 200, 'same-session credentials are reused without returning their values');
   assert.equal((await post('/api/live/start')).status, 202);
   const started = await until(s => s.snapshot?.committed >= 1);
   assert.equal((await post('/api/live/stop')).status, 202); await until(s => !s.running);

@@ -13,7 +13,7 @@ import { CantonLedger } from './ledger.js';
 import { faultKind, loadConfig, type EndpointId } from './model.js';
 import { FaultProxy } from './fault-proxy.js';
 import { freshRunDirectory } from './experience.js';
-import { browserRuns, doctorOutputSchema, liveDefaults, prepareBrowserRun } from './ui-live.js';
+import { browserProfiles, browserRuns, doctorOutputSchema, liveDefaults, prepareBrowserRun } from './ui-live.js';
 import { uiPage } from './ui-page.js';
 
 type DisplayIdentities = { externalPartyId: string; participants: { A: string; B: string } };
@@ -53,7 +53,7 @@ export function trafficSnapshot(journal: Journal) {
   };
 }
 
-export async function startUi(options: { journal?: string; port?: number; proxyConfig?: string; liveConfig?: string; envFile?: string; runsDirectory?: string } = {}) {
+export async function startUi(options: { journal?: string; port?: number; proxyConfig?: string; liveConfig?: string; envFile?: string; runsDirectory?: string; profilesDirectory?: string } = {}) {
   if (options.liveConfig && options.proxyConfig) throw new Error('Use --live-config or --proxy-config, not both');
   if (options.liveConfig && !options.journal) throw new Error('--live-config requires --journal');
   if (options.envFile && !options.liveConfig) throw new Error('--env-file requires --live-config');
@@ -73,6 +73,8 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
     try {
       const config = upstream;
       if (journal!.get('runId')) journal!.assertConfig(config);
+      const metadata = new Journal(journal!.path);
+      try { metadata.set('connectionConfig', config); } finally { metadata.close(); }
       if (config.scenario.type !== 'failover') throw new Error('Proxy controls require a failover scenario');
       faultedEndpoint = config.scenario.faultedEndpoint;
       const markers = journal!.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end');
@@ -160,8 +162,20 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
       }
       if (req.method === 'GET' && req.url === '/api/live/setup') {
         if (!setupEnabled) return send(403, { error: 'This viewer uses a server-selected configuration' });
-        const runs = browserRuns(options.runsDirectory);
-        return send(200, { defaults: liveDefaults, selectedRun: runs.find(r => r.journalPath === journal?.path)?.id ?? runs.find(r => !r.completed)?.id, runs: runs.map(r => ({ id: r.id, runId: r.runId, completed: r.completed, config: r.config })) });
+        const runs = browserRuns(options.runsDirectory, options.profilesDirectory);
+        const profiles = browserProfiles(options.profilesDirectory);
+        const current = runs.find(r => r.journalPath === journal?.path);
+        const credentials = (config: typeof upstream, isCurrent = false) => {
+          if (!config) return { signingKey: false, A: false, B: false };
+          const available = (original: string, canonical: string) => Boolean(process.env[original] || process.env[canonical] || (isCurrent && liveEnv[canonical]));
+          const auth = (id: EndpointId) => { const a = config.endpoints[id].auth; return available(a.type === 'static' ? a.tokenEnv : a.clientSecretEnv, `CANTON_${id}_${a.type === 'static' ? 'TOKEN' : 'CLIENT_SECRET'}`); };
+          return { signingKey: available(config.signingKeyEnv, 'CANTON_TEST_SIGNING_KEY'), A: auth('A'), B: auth('B') };
+        };
+        return send(200, { defaults: liveDefaults,
+          selectedRun: current ? current.canResume ? current.id : undefined : runs.find(r => r.canResume)?.id,
+          detectedSource: current?.id ?? runs[0]?.id ?? profiles[0]?.id,
+          profiles: profiles.map(p => ({ id: p.id, label: p.label, config: p.config, credentials: credentials(p.config) })),
+          runs: runs.map(r => ({ id: r.id, runId: r.runId, completed: r.completed, canResume: r.canResume, source: r.source, config: r.config, credentials: credentials(r.config, r.id === current?.id) })) });
       }
       if (req.method === 'POST' && req.url === '/api/live/configure') {
         if (!setupEnabled) return send(403, { error: 'This viewer uses a server-selected configuration' });
@@ -183,9 +197,11 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
           catch { return send(400, { error: 'Invalid setup request' }); }
           // Require explicit selection of the existing run, so ambiguous initialization never creates a second root.
           const selected = input && typeof input === 'object' && 'savedRun' in input ? input.savedRun : undefined;
-          const existing = browserRuns(options.runsDirectory).find(r => r.journalPath === journal?.path);
+          const existing = browserRuns(options.runsDirectory, options.profilesDirectory).find(r => r.journalPath === journal?.path);
           if (journal?.get('mode') === 'testnet' && journal.get('runId') && !journal.get('completedAt') && selected !== existing?.id) return send(409, { error: 'Resume the current unfinished run; its journal must be preserved' });
-          const prepared = await prepareBrowserRun(input, options.runsDirectory);
+          const prepared = await prepareBrowserRun(input, options.runsDirectory, options.profilesDirectory);
+          const metadata = new Journal(prepared.journalPath);
+          try { metadata.set('connectionConfig', prepared.connectionConfig); } finally { metadata.close(); }
           nextJournal = new Journal(prepared.journalPath, false);
           if (nextJournal.get('runId')) nextJournal.assertConfig(prepared.config);
           const markers = nextJournal.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end');
@@ -201,7 +217,9 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
           proxy = nextProxy; journal = nextJournal; nextProxy = undefined; nextJournal = undefined;
           faultedEndpoint = target; proxyConfigPath = routedPath;
           options.liveConfig = prepared.configPath; options.journal = prepared.journalPath; options.envFile = undefined;
-          liveEnv = prepared.env; upstream = prepared.config; liveError = undefined; readiness = undefined;
+          const sourceId = input && typeof input === 'object' ? ('savedRun' in input ? input.savedRun : 'reuseSource' in input ? input.reuseSource : undefined) : undefined;
+          const supplied = Object.fromEntries(Object.entries(prepared.env).filter(([, value]) => value !== undefined));
+          liveEnv = sourceId !== undefined && sourceId === existing?.id ? { ...liveEnv, ...supplied } : supplied; upstream = prepared.config; liveError = undefined; readiness = undefined;
           return send(200, { configured: true });
         } catch (e) {
           // Only validation errors are safe to show; raw filesystem/SDK errors remain private.

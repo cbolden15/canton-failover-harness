@@ -69,3 +69,53 @@ test('simulation viewer blocks cross-origin starts and reports real receipt-conf
   assert.ok(body.snapshot.events.some(e => e.kind === 'failover'));
   assert.ok(body.snapshot.events.some(e => e.kind === 'operation_committed' && e.data.endpoint === 'B'));
 });
+
+test('UI launches configured workload, stops and resumes the same root through proxy controls (local endpoints)', { timeout: 30000 }, async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'canton-ui-live-'));
+  const simulator = new Simulator();
+  // Test the live control path using local fake Ledger API endpoints, never real infrastructure.
+  const config = await simulator.start({ mode: 'testnet', count: 30, intervalMs: 150,
+    scenario: { type: 'failover', faultedEndpoint: 'A', minSurvivorOperations: 2, recoveryTimeoutMs: 2000 } });
+  const configPath = join(dir, 'config.json'); writeFileSync(configPath, JSON.stringify(config));
+  const journalPath = join(dir, 'journal.sqlite');
+  let ui = await startUi({ liveConfig: configPath, journal: journalPath, port: 0 });
+  t.after(async () => { await ui.close(); await simulator.close(); rmSync(dir, { recursive: true, force: true }); });
+  let address = ui.server.address(); assert.ok(address && typeof address !== 'string');
+  let base = `http://127.0.0.1:${address.port}`;
+  const action = (path: string, origin = base) => fetch(base + path, { method: 'POST', headers: { Origin: origin } });
+  type State = { running: boolean; live: { initialized: boolean; error?: string }; snapshot: ReturnType<typeof trafficSnapshot> | null };
+  const state = async () => (await (await fetch(base + '/api/traffic')).json()) as State;
+  const until = async (predicate: (s: State) => boolean) => {
+    const deadline = Date.now() + 15000;
+    for (;;) {
+      const s = await state(); if (predicate(s)) return s;
+      assert.ok(Date.now() < deadline, JSON.stringify(s));
+      await new Promise(resolve => setTimeout(resolve, 40));
+    }
+  };
+  assert.equal((await state()).live.initialized, false);
+  assert.equal((await action('/api/live/start', 'https://example.com')).status, 403);
+  assert.equal((await action('/api/live/start')).status, 202);
+  assert.equal((await action('/api/live/start')).status, 409);
+  const started = await until(s => (s.snapshot?.committed ?? 0) >= 1);
+  const rootJournal = new Journal(journalPath, false); const root = rootJournal.get('rootId'); rootJournal.close();
+  assert.equal((await action('/api/live/stop')).status, 202);
+  await until(s => !s.running);
+  await ui.close();
+  ui = await startUi({ liveConfig: configPath, journal: journalPath, port: 0 });
+  address = ui.server.address(); assert.ok(address && typeof address !== 'string');
+  base = `http://127.0.0.1:${address.port}`;
+  assert.equal((await state()).live.initialized, true);
+  assert.equal((await action('/api/live/start')).status, 202);
+  await until(s => s.running && (s.snapshot?.committed ?? 0) >= 2);
+  assert.equal((await action('/api/proxy/A/block')).status, 200);
+  await until(s => (s.snapshot?.survivorConfirmed ?? 0) >= 2);
+  assert.equal((await action('/api/proxy/A/restore')).status, 200);
+  const finished = await until(s => !s.running && s.snapshot?.committed === 30);
+  assert.equal(finished.snapshot?.runId, started.snapshot?.runId);
+  assert.equal(finished.snapshot?.result, 'CLIENT_PROXY_FAILOVER_PASS');
+  assert.equal((await action('/api/live/start')).status, 409);
+  const saved = new Journal(journalPath, false);
+  assert.equal(saved.get('rootId'), root); saved.close();
+  assert.equal(simulator.offline.size, 0);
+});

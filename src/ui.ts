@@ -2,8 +2,9 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { resolve, join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { pathToFileURL } from 'node:url';
-import { writeFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync, writeFileSync } from 'node:fs';
 import { Journal } from './journal.js';
 import { report, writeReport } from './report.js';
 import { Simulator } from './simulator.js';
@@ -51,17 +52,26 @@ export function trafficSnapshot(journal: Journal) {
   };
 }
 
-export async function startUi(options: { journal?: string; port?: number; proxyConfig?: string } = {}) {
+export async function startUi(options: { journal?: string; port?: number; proxyConfig?: string; liveConfig?: string; envFile?: string } = {}) {
+  if (options.liveConfig && options.proxyConfig) throw new Error('Use --live-config or --proxy-config, not both');
+  if (options.liveConfig && !options.journal) throw new Error('--live-config requires --journal');
+  if (options.envFile && !options.liveConfig) throw new Error('--env-file requires --live-config');
+  const upstreamPath = options.liveConfig ?? options.proxyConfig;
+  const upstream = upstreamPath ? loadConfig(resolve(upstreamPath)) : undefined;
+  if (options.liveConfig && upstream?.mode !== 'testnet') throw new Error('--live-config requires a testnet config');
+  if (options.liveConfig && !existsSync(resolve(options.journal!))) {
+    const empty = new Journal(resolve(options.journal!)); empty.close();
+  }
   if (options.proxyConfig && !options.journal) throw new Error('--proxy-config requires an initialized --journal');
   let journal = options.journal ? new Journal(resolve(options.journal), false) : undefined;
-  if (journal && !journal.get('runId')) { journal.close(); throw new Error('Journal is not initialized'); }
+  if (journal && !journal.get('runId') && !options.liveConfig) { journal.close(); throw new Error('Journal is not initialized'); }
   let proxy: FaultProxy | undefined;
   let proxyConfigPath: string | undefined;
   let faultedEndpoint: EndpointId | undefined;
-  if (options.proxyConfig) {
+  if (upstream) {
     try {
-      const config = loadConfig(resolve(options.proxyConfig));
-      journal!.assertConfig(config);
+      const config = upstream;
+      if (journal!.get('runId')) journal!.assertConfig(config);
       if (config.scenario.type !== 'failover') throw new Error('Proxy controls require a failover scenario');
       faultedEndpoint = config.scenario.faultedEndpoint;
       const markers = journal!.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end');
@@ -75,6 +85,9 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
   }
   let runner: Runner | undefined;
   let running: Promise<void> | undefined;
+  let child: ChildProcess | undefined;
+  let liveError: string | undefined;
+  let stoppingLive = false;
   let closing = false;
   let out: string | undefined;
   const demo = async (manualProxy = false) => {
@@ -133,10 +146,41 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
       if (req.method === 'GET' && req.url === '/api/traffic') {
         const markers = journal?.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end') ?? [];
         return send(200, { readOnly: Boolean(options.journal) && !proxy, canDemo: !options.journal, running: Boolean(running),
+          live: options.liveConfig ? { initialized: Boolean(journal?.get('runId')), completed: Boolean(journal?.get('completedAt')), stopping: stoppingLive, error: liveError, configPath: resolve(options.liveConfig), journalPath: journal!.path } : null,
           proxy: proxy ? { endpoint: faultedEndpoint, blocked: [...proxy.blocked],
             canBlock: !closing && journal?.get('bootstrap') === 'confirmed' && !journal.get('completedAt') && markers.length === 0,
             canRestore: !closing && markers.length === 1 && proxy.blocked.has(faultedEndpoint!) } : null,
           snapshot: journal?.get('runId') ? trafficSnapshot(journal) : null });
+      }
+      if (req.method === 'POST' && (req.url === '/api/live/start' || req.url === '/api/live/stop')) {
+        if (!options.liveConfig || !journal || !proxyConfigPath) return send(403, { error: 'Live controls are not enabled' });
+        if (req.headers.origin !== `http://${req.headers.host}`) return send(403, { error: 'Same-origin request required' });
+        if (closing) return send(409, { error: 'Viewer is stopping' });
+        if (req.url === '/api/live/stop') {
+          if (!child || stoppingLive) return send(409, { error: 'No active workload to stop' });
+          stoppingLive = true; child.kill('SIGINT');
+          return send(202, { stopping: true });
+        }
+        if (running) return send(409, { error: 'Workload already running' });
+        if (journal.get('completedAt')) return send(409, { error: 'Run completed; select a new journal for another test' });
+        const command = journal.get('runId') ? 'resume' : 'start';
+        const cli = new URL(import.meta.url.endsWith('.ts') ? './cli.ts' : './cli.js', import.meta.url);
+        const args = [...(cli.pathname.endsWith('.ts') ? ['--import', import.meta.resolve('tsx')] : []), fileURLToPath(cli), command,
+          '--config', proxyConfigPath, '--journal', journal.path, '--json',
+          ...(options.envFile ? ['--env-file', resolve(options.envFile)] : [])];
+        liveError = undefined; stoppingLive = false;
+        // Reuse the CLI's readiness checks, journal lock, and unknown-outcome reconciliation.
+        // Never return its raw output: credentials and transaction details stay server-side.
+        child = spawn(process.execPath, args, { stdio: 'ignore' });
+        const currentChild = child;
+        running = new Promise<void>(done => {
+          currentChild.once('error', () => { liveError = 'Workload could not launch. Check the server configuration; the journal is preserved.'; done(); });
+          currentChild.once('exit', code => {
+            if (code !== 0 && !stoppingLive) liveError = 'Workload stopped before completion. Check prerequisites with the CLI doctor, then resume this same journal.';
+            done();
+          });
+        }).finally(() => { child = undefined; stoppingLive = false; running = undefined; });
+        return send(202, { started: true, command });
       }
       const control = req.url?.match(/^\/api\/proxy\/(A|B)\/(block|restore)$/);
       if (req.method === 'POST' && control) {
@@ -177,7 +221,7 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
     await new Promise<void>((done, reject) => { server.once('error', reject); server.listen(options.port ?? 8787, '127.0.0.1', done); });
   } catch (e) { await proxy?.close(); journal?.close(); throw e; }
   return { server, proxyConfigPath, close: async () => {
-    closing = true; runner?.stop();
+    closing = true; runner?.stop(); child?.kill('SIGINT');
     server.closeAllConnections();
     await new Promise<void>((done, reject) => server.close(e => e ? reject(e) : done()));
     await proxy?.close();
@@ -186,12 +230,12 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const { values } = parseArgs({ options: { journal: { type: 'string' }, port: { type: 'string' }, 'proxy-config': { type: 'string' } } });
+  const { values } = parseArgs({ options: { journal: { type: 'string' }, port: { type: 'string' }, 'proxy-config': { type: 'string' }, 'live-config': { type: 'string' }, 'env-file': { type: 'string' } } });
   const port = Number(values.port ?? 8787);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be between 1 and 65535');
-  const ui = await startUi({ journal: values.journal, port, proxyConfig: values['proxy-config'] });
-  console.log(`Open http://127.0.0.1:${port} (${values['proxy-config'] ? 'client fault proxy controls' : values.journal ? 'read-only journal viewer' : 'local simulation'})`);
-  if (ui.proxyConfigPath) console.log(`Proxy config: ${ui.proxyConfigPath}\nRun or resume the CLI using this --config and the same --journal. Requests using the original config bypass these controls.`);
+  const ui = await startUi({ journal: values.journal, port, proxyConfig: values['proxy-config'], liveConfig: values['live-config'], envFile: values['env-file'] });
+  console.log(`Open http://127.0.0.1:${port} (${values['live-config'] ? 'live workload controls' : values['proxy-config'] ? 'client fault proxy controls' : values.journal ? 'read-only journal viewer' : 'local simulation'})`);
+  if (ui.proxyConfigPath && !values['live-config']) console.log(`Proxy config: ${ui.proxyConfigPath}\nRun or resume the CLI using this --config and the same --journal. Requests using the original config bypass these controls.`);
   let stopping = false;
   const stop = () => { if (!stopping) { stopping = true; void ui.close(); } };
   process.on('SIGINT', stop); process.on('SIGTERM', stop);

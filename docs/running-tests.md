@@ -60,6 +60,24 @@ npm start -- mark --journal ./runs/testnet-001/journal.sqlite --label fault-end 
 
 Record `fault-start` after introducing the fault and `fault-end` before restoration. The harness also requires an observed availability error inside that interval. Markers are operator attestations, not automatic verification of an infrastructure shutdown. Restore both participants before the convergence deadline for a complete verdict. An ambiguous `init` must be resumed with its original journal; never create a new root to clear an error. `preflight` is an alias for `doctor`.
 
+## Start and control a live test from the dashboard
+
+Select a prepared failover configuration and a journal when launching the UI:
+
+```sh
+npm run ui -- --live-config /absolute/path/to/testnet.json --journal /absolute/path/to/run/journal.sqlite --env-file /absolute/path/to/.env
+```
+
+Open `http://127.0.0.1:8787`. Add `--port 8788` if another viewer is already running. The dashboard shows the selected config and journal paths. Credentials stay in the server environment; the browser cannot edit them or select arbitrary files.
+
+Click **Start live test** to run prerequisite checks, initialize one ledger root, and submit the configured workload. This button writes signed transactions to the real participants. The UI runs the existing CLI and routes Ledger API requests through its local fault proxy automatically. Both participants must already have the required package, shared-party hosting, and permissions.
+
+While operations are running, click **Block traffic to A** (or the configured B target). Wait for the fresh survivor confirmation requirement, then click **Restore traffic**. The UI records the outage markers. **Stop workload** interrupts the harness and preserves the journal; it does not stop participant infrastructure. **Resume live test** continues that same journal, including reconciliation of unknown initialization or transaction outcomes.
+
+Keep the UI process running. To recover after restarting it, use the same original `--live-config` and `--journal`, then click **Resume live test**. An open proxy outage remains blocked until restored. Completed runs cannot be restarted from this journal; select a fresh journal path for the next exercise.
+
+If a run cannot start, check the config with `npm start -- doctor --config /absolute/path/to/testnet.json --env-file /absolute/path/to/.env`. The dashboard intentionally does not expose raw CLI output. Reports are saved beside the journal using the normal CLI report directory.
+
 ## Client proxy exercise
 
 Use this exercise when you can submit the dedicated test workload but cannot stop participant infrastructure. The proxy binds to loopback and forwards requests to the two configured Ledger API endpoints. Blocking a route destroys its existing connections and disconnects new requests. Authentication token acquisition still connects directly to your identity provider. The proxy does not retry submissions or store request bodies.

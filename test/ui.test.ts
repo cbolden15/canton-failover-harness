@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Journal } from '../src/journal.js';
@@ -118,4 +118,57 @@ test('UI launches configured workload, stops and resumes the same root through p
   const saved = new Journal(journalPath, false);
   assert.equal(saved.get('rootId'), root); saved.close();
   assert.equal(simulator.offline.size, 0);
+});
+
+
+test('default dashboard configures live connections without files, keeps secrets private, and resumes a saved run', { timeout: 30000 }, async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'canton-browser-setup-'));
+  const simulator = new Simulator();
+  const config = await simulator.start({ mode: 'testnet', count: 25, intervalMs: 150,
+    scenario: { type: 'failover', faultedEndpoint: 'A', minSurvivorOperations: 2, recoveryTimeoutMs: 2000 } });
+  const credentials = { signingKey: process.env[config.signingKeyEnv]!, A: 'local-simulation-only', B: 'local-simulation-only' };
+  let ui = await startUi({ port: 0, runsDirectory: dir });
+  t.after(async () => { await ui.close(); await simulator.close(); rmSync(dir, { recursive: true, force: true }); });
+  const baseUrl = () => { const address = ui.server.address(); assert.ok(address && typeof address !== 'string'); return `http://127.0.0.1:${address.port}`; };
+  const get = async (path: string) => (await fetch(baseUrl() + path)).json();
+  const post = (path: string, body?: unknown, origin = baseUrl()) => fetch(baseUrl() + path, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+  const until = async (predicate: (s: any) => boolean) => {
+    const deadline = Date.now() + 15000;
+    for (;;) { const s = await get('/api/traffic'); if (predicate(s)) return s; assert.ok(Date.now() < deadline, JSON.stringify(s)); await new Promise(resolve => setTimeout(resolve, 40)); }
+  };
+  const initial = await get('/api/traffic'); assert.equal(initial.canSetup, true); assert.equal(initial.canDemo, true);
+  const page = await (await fetch(baseUrl())).text(); assert.match(page, /id="live-setup">Live test/); assert.match(page, /id="live-form"/);
+  assert.equal((await post('/api/live/configure', { config, credentials }, 'https://example.com')).status, 403);
+  const invalid = await post('/api/live/configure', { config: { ...config, endpoints: { ...config.endpoints, A: { ...config.endpoints.A, token: 'DO_NOT_EXPOSE' } } }, credentials });
+  assert.equal(invalid.status, 400); assert.ok(!(await invalid.text()).includes('DO_NOT_EXPOSE'));
+  assert.equal((await post('/api/live/configure', { config, credentials })).status, 200);
+  const setup = await get('/api/live/setup'); assert.equal(setup.runs.length, 1);
+  const selected = setup.runs[0]; assert.equal(selected.config.signingFingerprint, config.signingFingerprint);
+  const configured = await get('/api/traffic'); assert.equal(configured.live.initialized, false); assert.equal(configured.canDemo, false);
+  for (const secret of Object.values(credentials)) {
+    assert.ok(!JSON.stringify(setup).includes(secret));
+    assert.ok(!JSON.stringify(configured).includes(secret));
+    assert.ok(!readFileSync(configured.live.configPath, 'utf8').includes(secret));
+  }
+  assert.equal(statSync(configured.live.configPath).mode & 0o777, 0o600);
+  assert.equal((await post('/api/live/check')).status, 202);
+  const checked = await until(s => !s.running && s.live.readiness);
+  assert.equal(checked.live.readiness.ready, true);
+  assert.equal(simulator.executions.length, 0, 'setup and connection checks never write to the ledger');
+  assert.equal((await post('/api/live/start')).status, 202);
+  const started = await until(s => s.snapshot?.committed >= 1);
+  assert.equal((await post('/api/live/stop')).status, 202); await until(s => !s.running);
+  assert.equal((await post('/api/live/configure', { config, credentials })).status, 409, 'unfinished run must not be replaced by another root');
+  await ui.close(); ui = await startUi({ port: 0, runsDirectory: dir });
+  assert.equal((await post('/api/live/configure', { savedRun: '../../private', credentials })).status, 400);
+  assert.equal((await post('/api/live/configure', { savedRun: selected.id, credentials })).status, 200);
+  assert.equal((await post('/api/live/start')).status, 202);
+  await until(s => s.running && s.snapshot?.committed >= 2);
+  assert.equal((await post('/api/proxy/A/block')).status, 200);
+  await until(s => s.snapshot?.survivorConfirmed >= 2);
+  assert.equal((await post('/api/proxy/A/restore')).status, 200);
+  const finished = await until(s => !s.running && s.snapshot?.committed === 25);
+  assert.equal(finished.snapshot.runId, started.snapshot.runId);
+  assert.equal(finished.snapshot.result, 'CLIENT_PROXY_FAILOVER_PASS');
+  assert.equal(simulator.executions.filter(e => e.sequence === 0).length, 1);
 });

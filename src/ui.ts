@@ -13,6 +13,7 @@ import { CantonLedger } from './ledger.js';
 import { faultKind, loadConfig, type EndpointId } from './model.js';
 import { FaultProxy } from './fault-proxy.js';
 import { freshRunDirectory } from './experience.js';
+import { browserRuns, doctorOutputSchema, liveDefaults, prepareBrowserRun } from './ui-live.js';
 import { uiPage } from './ui-page.js';
 
 type DisplayIdentities = { externalPartyId: string; participants: { A: string; B: string } };
@@ -52,12 +53,12 @@ export function trafficSnapshot(journal: Journal) {
   };
 }
 
-export async function startUi(options: { journal?: string; port?: number; proxyConfig?: string; liveConfig?: string; envFile?: string } = {}) {
+export async function startUi(options: { journal?: string; port?: number; proxyConfig?: string; liveConfig?: string; envFile?: string; runsDirectory?: string } = {}) {
   if (options.liveConfig && options.proxyConfig) throw new Error('Use --live-config or --proxy-config, not both');
   if (options.liveConfig && !options.journal) throw new Error('--live-config requires --journal');
   if (options.envFile && !options.liveConfig) throw new Error('--env-file requires --live-config');
   const upstreamPath = options.liveConfig ?? options.proxyConfig;
-  const upstream = upstreamPath ? loadConfig(resolve(upstreamPath)) : undefined;
+  let upstream = upstreamPath ? loadConfig(resolve(upstreamPath)) : undefined;
   if (options.liveConfig && upstream?.mode !== 'testnet') throw new Error('--live-config requires a testnet config');
   if (options.liveConfig && !existsSync(resolve(options.journal!))) {
     const empty = new Journal(resolve(options.journal!)); empty.close();
@@ -83,10 +84,15 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
       writeFileSync(proxyConfigPath, JSON.stringify(routed, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
     } catch (e) { await proxy?.close(); journal?.close(); throw e; }
   }
+  let configuring = false;
+  let liveEnv: NodeJS.ProcessEnv = {};
+  const setupEnabled = !options.journal;
   let runner: Runner | undefined;
   let running: Promise<void> | undefined;
   let child: ChildProcess | undefined;
   let liveError: string | undefined;
+  let readiness: ReturnType<typeof doctorOutputSchema.parse> | undefined;
+  let checking = false;
   let stoppingLive = false;
   let closing = false;
   let out: string | undefined;
@@ -130,7 +136,7 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
       runner = undefined;
     }
   };
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     const address = server.address();
@@ -145,14 +151,65 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
       }
       if (req.method === 'GET' && req.url === '/api/traffic') {
         const markers = journal?.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end') ?? [];
-        return send(200, { readOnly: Boolean(options.journal) && !proxy, canDemo: !options.journal, running: Boolean(running),
-          live: options.liveConfig ? { initialized: Boolean(journal?.get('runId')), completed: Boolean(journal?.get('completedAt')), stopping: stoppingLive, error: liveError, configPath: resolve(options.liveConfig), journalPath: journal!.path } : null,
+        return send(200, { readOnly: Boolean(options.journal) && !proxy, canSetup: setupEnabled, canDemo: !options.journal, running: Boolean(running) || configuring,
+          live: options.liveConfig ? { initialized: Boolean(journal?.get('runId')), completed: Boolean(journal?.get('completedAt')), stopping: stoppingLive, checking, readiness, identities: upstream ? { externalPartyId: upstream.party, participants: { A: upstream.endpoints.A.participantId, B: upstream.endpoints.B.participantId } } : null, plannedTotal: upstream?.count, error: liveError, configPath: resolve(options.liveConfig), journalPath: journal!.path } : null,
           proxy: proxy ? { endpoint: faultedEndpoint, blocked: [...proxy.blocked],
             canBlock: !closing && journal?.get('bootstrap') === 'confirmed' && !journal.get('completedAt') && markers.length === 0,
             canRestore: !closing && markers.length === 1 && proxy.blocked.has(faultedEndpoint!) } : null,
           snapshot: journal?.get('runId') ? trafficSnapshot(journal) : null });
       }
-      if (req.method === 'POST' && (req.url === '/api/live/start' || req.url === '/api/live/stop')) {
+      if (req.method === 'GET' && req.url === '/api/live/setup') {
+        if (!setupEnabled) return send(403, { error: 'This viewer uses a server-selected configuration' });
+        const runs = browserRuns(options.runsDirectory);
+        return send(200, { defaults: liveDefaults, selectedRun: runs.find(r => r.journalPath === journal?.path)?.id ?? runs.find(r => !r.completed)?.id, runs: runs.map(r => ({ id: r.id, runId: r.runId, completed: r.completed, config: r.config })) });
+      }
+      if (req.method === 'POST' && req.url === '/api/live/configure') {
+        if (!setupEnabled) return send(403, { error: 'This viewer uses a server-selected configuration' });
+        if (req.headers.origin !== `http://${req.headers.host}`) return send(403, { error: 'Same-origin request required' });
+        if (running || configuring || closing) return send(409, { error: 'Stop the workload before setup' });
+        configuring = true;
+        let nextProxy: FaultProxy | undefined;
+        let nextJournal: Journal | undefined;
+        try {
+          if (!req.headers['content-type']?.startsWith('application/json')) return send(415, { error: 'JSON required' });
+          const chunks: Buffer[] = []; let size = 0;
+          for await (const chunk of req) {
+            size += chunk.length;
+            if (size > 65536) return send(413, { error: 'Setup request too large' });
+            chunks.push(Buffer.from(chunk));
+          }
+          let input: unknown;
+          try { input = JSON.parse(Buffer.concat(chunks).toString()); }
+          catch { return send(400, { error: 'Invalid setup request' }); }
+          // Require explicit selection of the existing run, so ambiguous initialization never creates a second root.
+          const selected = input && typeof input === 'object' && 'savedRun' in input ? input.savedRun : undefined;
+          const existing = browserRuns(options.runsDirectory).find(r => r.journalPath === journal?.path);
+          if (journal?.get('mode') === 'testnet' && journal.get('runId') && !journal.get('completedAt') && selected !== existing?.id) return send(409, { error: 'Resume the current unfinished run; its journal must be preserved' });
+          const prepared = await prepareBrowserRun(input, options.runsDirectory);
+          nextJournal = new Journal(prepared.journalPath, false);
+          if (nextJournal.get('runId')) nextJournal.assertConfig(prepared.config);
+          const markers = nextJournal.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end');
+          if (markers.some(e => e.data.source !== 'client-proxy')) return send(409, { error: 'Saved run contains infrastructure markers' });
+          nextProxy = new FaultProxy(prepared.config);
+          const routed = await nextProxy.start();
+          const target = prepared.config.scenario.type === 'failover' ? prepared.config.scenario.faultedEndpoint : undefined;
+          if (markers.length === 1) nextProxy.block(target!);
+          const routedPath = join(resolve(prepared.journalPath, '..'), `proxy-config-${randomUUID()}.json`);
+          writeFileSync(routedPath, JSON.stringify(routed, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
+          if (closing) return send(409, { error: 'Viewer is stopping' });
+          await proxy?.close(); journal?.close();
+          proxy = nextProxy; journal = nextJournal; nextProxy = undefined; nextJournal = undefined;
+          faultedEndpoint = target; proxyConfigPath = routedPath;
+          options.liveConfig = prepared.configPath; options.journal = prepared.journalPath; options.envFile = undefined;
+          liveEnv = prepared.env; upstream = prepared.config; liveError = undefined; readiness = undefined;
+          return send(200, { configured: true });
+        } catch (e) {
+          // Only validation errors are safe to show; raw filesystem/SDK errors remain private.
+          const message = e instanceof Error && /^(Invalid setup|Saved run|Check setup fields|Live setup|Primary participant|Confirm shared|Signing key)/.test(e.message) ? e.message : 'Could not configure this run; check setup fields';
+          return send(400, { error: message });
+        } finally { await nextProxy?.close(); nextJournal?.close(); configuring = false; }
+      }
+      if (req.method === 'POST' && (req.url === '/api/live/start' || req.url === '/api/live/stop' || req.url === '/api/live/check')) {
         if (!options.liveConfig || !journal || !proxyConfigPath) return send(403, { error: 'Live controls are not enabled' });
         if (req.headers.origin !== `http://${req.headers.host}`) return send(403, { error: 'Same-origin request required' });
         if (closing) return send(409, { error: 'Viewer is stopping' });
@@ -161,25 +218,35 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
           stoppingLive = true; child.kill('SIGINT');
           return send(202, { stopping: true });
         }
-        if (running) return send(409, { error: 'Workload already running' });
-        if (journal.get('completedAt')) return send(409, { error: 'Run completed; select a new journal for another test' });
-        const command = journal.get('runId') ? 'resume' : 'start';
+        if (running || configuring) return send(409, { error: 'Workload already running or setup in progress' });
+        if (req.url !== '/api/live/check' && journal.get('completedAt')) return send(409, { error: 'Run completed; select a new journal for another test' });
+        const command = req.url === '/api/live/check' ? 'doctor' : journal.get('runId') ? 'resume' : 'start';
         const cli = new URL(import.meta.url.endsWith('.ts') ? './cli.ts' : './cli.js', import.meta.url);
         const args = [...(cli.pathname.endsWith('.ts') ? ['--import', import.meta.resolve('tsx')] : []), fileURLToPath(cli), command,
           '--config', proxyConfigPath, '--journal', journal.path, '--json',
           ...(options.envFile ? ['--env-file', resolve(options.envFile)] : [])];
-        liveError = undefined; stoppingLive = false;
+        liveError = undefined; stoppingLive = false; checking = command === 'doctor';
         // Reuse the CLI's readiness checks, journal lock, and unknown-outcome reconciliation.
         // Never return its raw output: credentials and transaction details stay server-side.
-        child = spawn(process.execPath, args, { stdio: 'ignore' });
+        child = spawn(process.execPath, args, { stdio: command === 'doctor' ? ['ignore', 'pipe', 'ignore'] : 'ignore', env: { ...process.env, ...liveEnv } });
         const currentChild = child;
+        let output = '';
+        currentChild.stdout?.on('data', chunk => { if (output.length < 262144) output += chunk.toString(); });
         running = new Promise<void>(done => {
           currentChild.once('error', () => { liveError = 'Workload could not launch. Check the server configuration; the journal is preserved.'; done(); });
-          currentChild.once('exit', code => {
-            if (code !== 0 && !stoppingLive) liveError = 'Workload stopped before completion. Check prerequisites with the CLI doctor, then resume this same journal.';
+          currentChild.once('close', code => {
+            if (command === 'doctor') {
+              try {
+                const value = doctorOutputSchema.parse(JSON.parse(output));
+                // Keep entered credential values out of any diagnostic projection.
+                let safe = JSON.stringify(value);
+                for (const secret of Object.values(liveEnv)) if (secret) safe = safe.replaceAll(JSON.stringify(secret).slice(1, -1), '[redacted]');
+                readiness = doctorOutputSchema.parse(JSON.parse(safe));
+              } catch { liveError = 'Connection checks could not finish. Check the participant details and credentials in Live setup.'; }
+            } else if (code !== 0 && !stoppingLive) liveError = 'Workload stopped before completion. Use Check connections to inspect prerequisites, then resume this same journal.';
             done();
           });
-        }).finally(() => { child = undefined; stoppingLive = false; running = undefined; });
+        }).finally(() => { child = undefined; stoppingLive = false; checking = false; running = undefined; });
         return send(202, { started: true, command });
       }
       const control = req.url?.match(/^\/api\/proxy\/(A|B)\/(block|restore)$/);
@@ -210,7 +277,7 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
       if (req.method === 'POST' && (req.url === '/api/demo' || req.url === '/api/proxy-demo')) {
         if (options.journal) return send(403, { error: 'This viewer is read-only' });
         if (req.headers.origin !== `http://${req.headers.host}`) return send(403, { error: 'Same-origin request required' });
-        if (running || closing) return send(409, { error: 'Simulation already running or server stopping' });
+        if (running || configuring || closing) return send(409, { error: 'Simulation already running or server stopping' });
         running = demo(req.url === '/api/proxy-demo').catch(() => { console.error('Simulation report failed; journal preserved.'); }).finally(() => { running = undefined; });
         return send(202, { started: true });
       }
@@ -225,7 +292,7 @@ export async function startUi(options: { journal?: string; port?: number; proxyC
     server.closeAllConnections();
     await new Promise<void>((done, reject) => server.close(e => e ? reject(e) : done()));
     await proxy?.close();
-    await running; journal?.close();
+    await running; journal?.close(); liveEnv = {};
   } };
 }
 

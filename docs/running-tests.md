@@ -62,21 +62,31 @@ Record `fault-start` after introducing the fault and `fault-end` before restorat
 
 ## Start and control a live test from the dashboard
 
-Select a prepared failover configuration and a journal when launching the UI:
+Start the dashboard without configuration flags:
+
+```sh
+npm run ui
+```
+
+Open `http://127.0.0.1:8787` and click **Live test**. Enter the participant URLs and IDs, shared external party and synchronizer IDs, and authentication details. Bearer tokens, OIDC, and Auth0 client credentials are supported. Enter a signing key to derive its fingerprint automatically, or supply the fingerprint when the key is already in the server environment. Choose the participant to block and the workload size, then confirm that shared-party hosting, independent submission, the test package, and permissions are ready.
+
+Click **Prepare live test** to save connection settings locally and enable live controls. Preparation makes no ledger writes. The dashboard stores non-secret settings and a journal under `runs/`; entered credentials stay only in server memory and are cleared from the form after setup. Credentials are never returned in dashboard responses or written to saved configs. If credentials are already in the server environment, leave their fields blank. Environment references are `CANTON_TEST_SIGNING_KEY`, `CANTON_A_TOKEN` / `CANTON_B_TOKEN` for bearer tokens, or `CANTON_A_CLIENT_SECRET` / `CANTON_B_CLIENT_SECRET` for client credentials.
+
+Click **Check connections** for authenticated prerequisite reads. Failed checks appear in the dashboard with corrective actions. Click **Live setup** to update credentials. Saved run settings are locked so a resumed run preserves its identity and workload contract.
+
+Click **Start live test** to check prerequisites, initialize one ledger root, and submit the configured workload. This button writes signed transactions to the real participants. The UI runs the existing CLI and routes Ledger API requests through its local fault proxy automatically.
+
+While operations are running, click **Block traffic to A** (or the configured B target). Wait for the fresh survivor confirmation requirement, then click **Restore traffic**. The UI records the outage markers. **Stop workload** interrupts the harness and preserves the journal; it does not stop participant infrastructure. **Resume live test** continues that same journal, including reconciliation of unknown initialization or transaction outcomes.
+
+After restarting the dashboard, click **Live test**, select the saved run, re-enter any credentials that were supplied through the form, and click **Prepare live test**, then **Resume live test**. An open proxy outage remains blocked until restored. An unfinished live run cannot be replaced through setup while selected. For another exercise after completion, choose **New test** to get a fresh journal. Reports use the normal CLI report directory beside the journal.
+
+Existing file-based launch commands remain available:
 
 ```sh
 npm run ui -- --live-config /absolute/path/to/testnet.json --journal /absolute/path/to/run/journal.sqlite --env-file /absolute/path/to/.env
 ```
 
-Open `http://127.0.0.1:8787`. Add `--port 8788` if another viewer is already running. The dashboard shows the selected config and journal paths. Credentials stay in the server environment; the browser cannot edit them or select arbitrary files.
-
-Click **Start live test** to run prerequisite checks, initialize one ledger root, and submit the configured workload. This button writes signed transactions to the real participants. The UI runs the existing CLI and routes Ledger API requests through its local fault proxy automatically. Both participants must already have the required package, shared-party hosting, and permissions.
-
-While operations are running, click **Block traffic to A** (or the configured B target). Wait for the fresh survivor confirmation requirement, then click **Restore traffic**. The UI records the outage markers. **Stop workload** interrupts the harness and preserves the journal; it does not stop participant infrastructure. **Resume live test** continues that same journal, including reconciliation of unknown initialization or transaction outcomes.
-
-Keep the UI process running. To recover after restarting it, use the same original `--live-config` and `--journal`, then click **Resume live test**. An open proxy outage remains blocked until restored. Completed runs cannot be restarted from this journal; select a fresh journal path for the next exercise.
-
-If a run cannot start, check the config with `npm start -- doctor --config /absolute/path/to/testnet.json --env-file /absolute/path/to/.env`. The dashboard intentionally does not expose raw CLI output. Reports are saved beside the journal using the normal CLI report directory.
+Add `--port 8788` if another viewer is already running. This launch uses the server-selected configuration; browser setup is disabled for that viewer.
 
 ## Client proxy exercise
 

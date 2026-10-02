@@ -15,3 +15,5 @@ Tests that parsed all stderr as one JSON document failed on Node 24.10 while pas
 ## IdP throttling test timing
 
 During documentation verification, the full suite's `IdP429` test once expected an execution through A but observed B. All three IdP tests passed immediately when run alone, and a subsequent full run passed all 77 tests. The fixture uses a 5 ms receipt-stall probe interval. If a throttled A read takes that long, the runner can legitimately probe B and select its expected input before retrying A. Thus the test's absolute no-switch assertion is timing-sensitive even when throttling remains correctly classified. This observation does not establish a live-network defect. Keep a future test repair scoped to distinguishing availability-triggered switching from evidence-based receipt-stall switching.
+
+The same A-versus-B assertion occurred once in the 85-test suite while adding browser live setup. The new UI tests passed, and all three IdP tests passed in isolation. A subsequent full run passed all 85 tests. The receipt-stall timing above also applies to this observation.

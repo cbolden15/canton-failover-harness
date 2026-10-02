@@ -17,19 +17,21 @@ function reportSnapshot(journal: Journal) {
   const evidence = acceptance(journal);
   const result = journal.get<string>('result') ?? 'INCONCLUSIVE';
   const passed = ['PASS', 'SIMULATION_PASS'].includes(result) && evidence.status === 'eligible' && events.some(e => e.kind === 'converged');
-  const acceptanceResult = passed ? `${journal.get('mode') === 'simulation' ? 'SIMULATION_' : ''}${scenario.type === 'baseline' ? 'BASELINE_PASS' : 'FAILOVER_PASS'}` : result === 'FAIL' ? 'FAIL' : 'INCONCLUSIVE';
+  const clientInjected = events.some(e => e.kind === 'fault_start' && e.data.source === 'client-proxy');
+  const acceptanceResult = passed ? `${journal.get('mode') === 'simulation' ? 'SIMULATION_' : ''}${clientInjected ? 'CLIENT_PROXY_' : ''}${scenario.type === 'baseline' ? 'BASELINE_PASS' : 'FAILOVER_PASS'}` : result === 'FAIL' ? 'FAIL' : 'INCONCLUSIVE';
   const attempts = journal.db.prepare('SELECT * FROM attempts ORDER BY startedAt,id').all();
   const commits = events.filter(e => e.kind === 'operation_committed');
   const gaps = commits.slice(1).map((e, i) => Date.parse(e.at) - Date.parse(commits[i].at));
   return {
     result, scenario, acceptanceResult, acceptance: evidence, mode: journal.get('mode'), runId: journal.get('runId'),
+    faultSource: clientInjected ? 'client-proxy' : 'operator-or-simulation',
     plannedTotal: journal.get('count'), committed: operations.filter(o => o.status === 'committed').length,
     unresolved: operations.filter(o => o.status !== 'committed').map(o => ({ sequence: o.sequence, status: o.status })),
     bootstrap: journal.get('bootstrap'), activeEndpoint: journal.get('active'),
     createdAt: journal.get('createdAt'), completedAt: journal.get('completedAt') ?? null,
     failovers: events.filter(e => e.kind === 'failover').length,
     longestObservedCommitGapMs: gaps.length ? Math.max(...gaps) : null,
-    measurement: 'Client confirmation timestamps; commit gaps include configured workload intervals. Outage windows are operator-attested; survivor progress and recovery are client-observed. This is not ledger finality latency or a production RTO guarantee.',
+    measurement: `Client confirmation timestamps; commit gaps include configured workload intervals. ${clientInjected ? 'Outage injected by a local client proxy; participant infrastructure remains online.' : 'Outage windows are operator-attested.'} Survivor progress and recovery are client-observed. This is not ledger finality latency or a production RTO guarantee.`,
     operations, attempts, events,
   };
 }

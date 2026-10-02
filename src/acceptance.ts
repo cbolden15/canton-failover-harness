@@ -1,7 +1,7 @@
 import { Journal } from './journal.js';
 import { Scenario, alternate } from './model.js';
 
-/** Operator-attested outage window and client-observed, validated receipt evidence. */
+/** Operator-attested or client-proxy outage window and validated receipt evidence. */
 export function acceptance(journal: Journal) {
   const scenario = journal.get<Scenario>('scenario') ?? { type: 'baseline' };
   const events = journal.events();
@@ -14,6 +14,7 @@ export function acceptance(journal: Journal) {
   if (markers.length > 2 || start.kind !== 'fault_start' ||
       start.data.endpoint !== scenario.faultedEndpoint || !Number.isFinite(startMs) ||
       (end && (end.kind !== 'fault_end' || start.id >= end.id || end.data.endpoint !== scenario.faultedEndpoint ||
+        end.data.source !== start.data.source ||
         !Number.isFinite(endMs) || endMs < startMs)))
     return { ...base, status: 'pending' as const, reason: 'Fault markers do not form one ordered, matching window', window: null };
   const window = { endpoint: scenario.faultedEndpoint, startEventId: start.id, endEventId: end?.id ?? null, startedAt: start.at, endedAt: end?.at ?? null };

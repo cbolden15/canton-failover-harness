@@ -46,6 +46,14 @@ npm run ui -- --journal /absolute/path/to/journal.sqlite
 
 The viewer displays both participant IDs and the shared external party ID, and polls the journal every 400 ms. New runs retain these IDs in their journal. Older live journals use their saved config when it still matches the run; otherwise IDs display as unavailable. Run the workload and manage live faults through the existing CLI and operator procedure. Use `--port 8788` if the default port is occupied. Stop the viewer with Ctrl+C.
 
+### Test without stopping infrastructure
+
+Click **Try proxy controls** in the local UI to run a simulation through a real loopback forwarding proxy. Click **Block traffic to A**, wait for the fresh survivor confirmation requirement, and click **Restore traffic to A**. This manual exercise submits 60 operations at one-second intervals. Restore before the two-minute convergence deadline if the workload finishes while A is blocked.
+
+For live participants, first initialize a journal against your prepared failover config. Start the proxy UI with that same config and journal, then run the CLI through the proxy-generated config. The UI can disconnect and restore the configured fault endpoint. See the [proxy exercise procedure](docs/running-tests.md#client-proxy-exercise).
+
+The proxy cuts existing connections and blocks new connections to the selected route. It affects only this harness's Ledger API traffic; both participants remain online. Reports label this evidence `CLIENT_PROXY_FAILOVER_PASS` (or `SIMULATION_CLIENT_PROXY_FAILOVER_PASS`) and identify the fault source. Connection cuts can leave a submitted transaction's outcome unknown; receipt reconciliation still determines whether it committed.
+
 ## Test your participants
 
 First, follow the [live-test guide](docs/running-tests.md#connect-your-participants) to prepare the shared party, permissions, receipt DAR, and credentials. Then configure a profile:

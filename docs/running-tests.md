@@ -60,6 +60,46 @@ npm start -- mark --journal ./runs/testnet-001/journal.sqlite --label fault-end 
 
 Record `fault-start` after introducing the fault and `fault-end` before restoration. The harness also requires an observed availability error inside that interval. Markers are operator attestations, not automatic verification of an infrastructure shutdown. Restore both participants before the convergence deadline for a complete verdict. An ambiguous `init` must be resumed with its original journal; never create a new root to clear an error. `preflight` is an alias for `doctor`.
 
+## Client proxy exercise
+
+Use this exercise when you can submit the dedicated test workload but cannot stop participant infrastructure. The proxy binds to loopback and forwards requests to the two configured Ledger API endpoints. Blocking a route destroys its existing connections and disconnects new requests. Authentication token acquisition still connects directly to your identity provider. The proxy does not retry submissions or store request bodies.
+
+Use a prepared failover config with `primary` matching `scenario.faultedEndpoint`. The commands below use A as the fault target. Run them from the repository root, replacing the absolute config, env-file, and journal paths. Use a fresh journal path for a new exercise.
+
+1. Initialize the test root with both participants reachable:
+
+   ```sh
+   npm start -- init --config /absolute/path/to/testnet.json --journal /absolute/path/to/run/journal.sqlite --env-file /absolute/path/to/.env
+   ```
+
+   Continue after root confirmation. If initialization is ambiguous, reconcile with `resume` using this same journal. Never initialize another root to clear the error.
+
+2. Start the proxy UI in a separate terminal:
+
+   ```sh
+   npm run ui -- --proxy-config /absolute/path/to/testnet.json --journal /absolute/path/to/run/journal.sqlite
+   ```
+
+   Open `http://127.0.0.1:8787`. The terminal prints an absolute **Proxy config** path. Keep this process running throughout the exercise.
+
+3. Run the workload through that generated config in your workload terminal:
+
+   ```sh
+   npm start -- resume --config /absolute/path/printed/by/proxy/proxy-config-ID.json --journal /absolute/path/to/run/journal.sqlite --env-file /absolute/path/to/.env
+   ```
+
+   The generated config preserves participant IDs, external party identity, and environment variable references while routing Ledger API requests through the local proxy. Requests using the original config bypass the proxy and cannot be blocked from this UI.
+
+4. Click **Block traffic to A** while operations are still running. The UI cuts A's connections and records a client-proxy fault-start marker. Wait for the displayed fresh survivor confirmation requirement. Receipt discovery for an earlier A submission does not count toward that requirement.
+
+5. Click **Restore traffic to A**. The UI records fault-end before reopening the route. The harness requires agreement from both participants to finish. It stays on B after recovery.
+
+Do not use the CLI's `s`/`e` or `mark` commands for the same proxy window; the UI manages both markers. Only the configured fault endpoint can be blocked, and each journal accepts one outage window. To test the reverse direction, create a fresh run with B as both primary and fault target.
+
+The report's `faultSource` is `client-proxy`. A successful live exercise reports `CLIENT_PROXY_FAILOVER_PASS`; the equivalent simulator exercise reports `SIMULATION_CLIENT_PROXY_FAILOVER_PASS`. These results demonstrate harness recovery from injected connection loss. They do not establish recovery after participant infrastructure shutdown, loss of synchronization, or topology changes.
+
+If the proxy process stops, both generated routes become unreachable. Preserve the journal. Restart the proxy UI using the original upstream config and the same journal, then resume using the newly printed proxy config. An open client-proxy outage window is reblocked on startup and can be restored through the UI. Do not use an old proxy-generated config as `--proxy-config`: its upstream addresses belong to the previous process.
+
 ## The three pieces
 
 | Piece | Location | Behavior |
@@ -100,7 +140,7 @@ Choose the recovery limit before initializing the run. The example's 60 seconds 
 
 Failover acceptance requires one closed outage window for the configured endpoint. After an availability error from that endpoint, the survivor must submit and confirm at least `minSurvivorOperations` new operations before the window closes. Every submission attempt for each qualifying operation must be through the survivor inside that window. Finding a receipt for an earlier or faulted-endpoint submission does not count. The first qualifying confirmation must occur within `recoveryTimeoutMs` of `fault-start`, and both participants must converge at the end.
 
-Reports and CLI summaries expose `scenario` and `acceptanceResult`. Successful real-ledger acceptance is labelled `BASELINE_PASS` or `FAILOVER_PASS`; simulation labels are `SIMULATION_BASELINE_PASS` and `SIMULATION_FAILOVER_PASS`. A healthy baseline cannot earn a failover acceptance label.
+Reports and CLI summaries expose `scenario` and `acceptanceResult`. Successful baseline or infrastructure-fault real-ledger acceptance is labelled `BASELINE_PASS` or `FAILOVER_PASS`; simulation labels are `SIMULATION_BASELINE_PASS` and `SIMULATION_FAILOVER_PASS`. Client-proxy exercises add `CLIENT_PROXY_` before `FAILOVER_PASS`, retaining the `SIMULATION_` prefix for simulator runs. A healthy baseline cannot earn a failover acceptance label.
 
 | Result | Meaning |
 | --- | --- |
@@ -114,4 +154,3 @@ Reports contain operation identities, submission attempts, endpoint errors by ca
 Exit codes are `0` for a completed command, `1` for failed acceptance, configuration/auth/permission, or other non-availability errors, `2` for unresolved availability, and `3` for integrity failures. `report` exports the stored verdict and exits successfully even if that verdict is inconclusive or failed. Read the result and acceptance fields when automating report consumption.
 
 The current CLI is a single writer on one local machine. Durable local intent survives process restart, not loss of that machine or disk. A production service would need a replicated journal, fenced ownership, managed signing, deployment supervision, and operational monitoring. That is a separate architecture scope.
-

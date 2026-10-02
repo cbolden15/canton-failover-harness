@@ -88,7 +88,7 @@ export class Journal {
       this.event('operation_committed', { sequence: receipt.sequence, receiptId: receipt.contractId, endpoint });
     });
   }
-  mark(label: 'fault-start' | 'fault-end' | 'recovery', endpoint?: EndpointId, simulated = false): void {
+  mark(label: 'fault-start' | 'fault-end' | 'recovery', endpoint?: EndpointId, simulated = false, source?: 'client-proxy'): void {
     this.transaction(() => {
       if (!this.get('runId')) throw new Fault('configuration', 'Journal is not initialized');
       if (this.get('completedAt') || this.events().some(e => e.kind === 'converged')) throw new Fault('configuration', 'Completed runs cannot accept marker edits');
@@ -99,7 +99,9 @@ export class Journal {
       const windows = this.events().filter(e => e.kind === 'fault_start' || e.kind === 'fault_end');
       if (label === 'fault-start' ? windows.length !== 0 : windows.length !== 1 || windows[0].kind !== 'fault_start' || windows[0].data.endpoint !== endpoint)
         throw new Fault('configuration', 'Fault markers require exactly one ordered, matching start/end window');
-      this.event(label.replace('-', '_'), { endpoint, simulated, operatorAttested: true });
+      if (label === 'fault-end' && windows[0].data.source !== source)
+        throw new Fault('configuration', 'Fault-end source must match fault-start source');
+      this.event(label.replace('-', '_'), { endpoint, simulated, operatorAttested: source !== 'client-proxy', ...(source ? { source } : {}) });
     });
   }
   close(): void { this.lock?.close(); this.db.close(); }

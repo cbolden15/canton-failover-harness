@@ -44,7 +44,7 @@ To watch an existing live run without modifying it:
 npm run ui -- --journal /absolute/path/to/journal.sqlite
 ```
 
-The viewer polls the journal every 400 ms. Run the workload and manage live faults through the existing CLI and operator procedure. Use `--port 8788` if the default port is occupied. Stop the viewer with Ctrl+C.
+The viewer displays both participant IDs and the shared external party ID, and polls the journal every 400 ms. New runs retain these IDs in their journal. Older live journals use their saved config when it still matches the run; otherwise IDs display as unavailable. Run the workload and manage live faults through the existing CLI and operator procedure. Use `--port 8788` if the default port is occupied. Stop the viewer with Ctrl+C.
 
 ## Test your participants
 

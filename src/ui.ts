@@ -8,9 +8,23 @@ import { report, writeReport } from './report.js';
 import { Simulator } from './simulator.js';
 import { Runner } from './runner.js';
 import { CantonLedger } from './ledger.js';
-import { faultKind } from './model.js';
+import { faultKind, loadConfig } from './model.js';
 import { freshRunDirectory } from './experience.js';
 import { uiPage } from './ui-page.js';
+
+type DisplayIdentities = { externalPartyId: string; participants: { A: string; B: string } };
+function displayIdentities(journal: Journal): DisplayIdentities | null {
+  const saved = journal.get<DisplayIdentities>('displayIdentities');
+  if (saved) return saved;
+  // Older live journals can use their original config, only when its run identity matches.
+  const configPath = journal.get<string>('configPath');
+  if (!configPath) return null;
+  try {
+    const config = loadConfig(configPath);
+    journal.assertConfig(config);
+    return { externalPartyId: config.party, participants: { A: config.endpoints.A.participantId, B: config.endpoints.B.participantId } };
+  } catch { return null; }
+}
 
 /** Browser projection deliberately excludes contracts, config, and free-form event data. */
 export function trafficSnapshot(journal: Journal) {
@@ -19,6 +33,7 @@ export function trafficSnapshot(journal: Journal) {
   const lastActivity = r.events.findLast(e => ['dispatching', 'operation_committed', 'root_confirmed', 'converged', 'stopped', 'command_error'].includes(e.kind));
   return {
     runId: r.runId, mode: r.mode, activeEndpoint: r.activeEndpoint,
+    identities: displayIdentities(journal),
     committed: r.committed, plannedTotal: r.plannedTotal, failovers: r.failovers,
     completedAt: r.completedAt, result: r.acceptanceResult,
     stopped: lastActivity?.kind === 'stopped' || lastActivity?.kind === 'command_error',

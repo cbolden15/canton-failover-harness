@@ -48,6 +48,7 @@ export class Journal {
     this.transaction(() => {
       this.set('identity', identity(c)); this.set('runId', runId); this.set('count', c.count);
       this.set('scenario', c.scenario); this.set('mode', c.mode); this.set('active', c.primary); this.set('createdAt', new Date().toISOString());
+      this.set('displayIdentities', { externalPartyId: c.party, participants: { A: c.endpoints.A.participantId, B: c.endpoints.B.participantId } });
       this.set('bootstrap', 'planned'); this.event('run_created', { runId, count: c.count, mode: c.mode });
     });
   }

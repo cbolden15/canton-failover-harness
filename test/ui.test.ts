@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Journal } from '../src/journal.js';
@@ -28,6 +28,7 @@ test('live viewer reads the journal without writes and omits sensitive event dat
   assert.equal(body.snapshot.operations[0].status, 'unknown');
   assert.equal(body.snapshot.committed, 0);
   assert.equal(body.snapshot.result, 'INCONCLUSIVE');
+  assert.deepEqual(body.snapshot.identities, { externalPartyId: config.party, participants: { A: config.endpoints.A.participantId, B: config.endpoints.B.participantId } });
   assert.ok(!JSON.stringify(body).includes('DO_NOT_EXPOSE'));
   assert.ok(!JSON.stringify(body).includes('private-contract'));
   assert.equal((await fetch(`${base}/api/demo`, { method: 'POST', headers: { Origin: base } })).status, 403);
@@ -36,6 +37,14 @@ test('live viewer reads the journal without writes and omits sensitive event dat
   assert.equal(trafficSnapshot(journal).stopped, true);
   journal.attempt(1, 'B');
   assert.equal(trafficSnapshot(journal).stopped, false, 'a resumed run must not retain the previous stopped display');
+  journal.delete('displayIdentities');
+  assert.equal(trafficSnapshot(journal).identities, null);
+  const configPath = join(dir, 'config.json');
+  writeFileSync(configPath, JSON.stringify(config));
+  journal.set('configPath', configPath);
+  assert.deepEqual(trafficSnapshot(journal).identities, body.snapshot.identities);
+  writeFileSync(configPath, JSON.stringify({ ...config, party: 'different-party' }));
+  assert.equal(trafficSnapshot(journal).identities, null, 'changed config must not mislabel the original run');
 });
 
 test('simulation viewer blocks cross-origin starts and reports real receipt-confirmed failover', { timeout: 25000 }, async t => {
@@ -53,6 +62,7 @@ test('simulation viewer blocks cross-origin starts and reports real receipt-conf
     body = await (await fetch(`${base}/api/traffic`)).json() as typeof body;
   } while (body.running);
   assert.equal(body.snapshot.mode, 'simulation');
+  assert.deepEqual(body.snapshot.identities, { externalPartyId: 'simulation-party::namespace', participants: { A: 'participant-A', B: 'participant-B' } });
   assert.equal(body.snapshot.result, 'SIMULATION_FAILOVER_PASS');
   assert.equal(body.snapshot.committed, 16);
   assert.equal(body.snapshot.activeEndpoint, 'B');

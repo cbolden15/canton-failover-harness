@@ -1,5 +1,11 @@
 # Verified gotchas
 
+## Dashboard connector sizing
+
+Keep the connector SVG absolutely positioned inside its grid cell. An SVG with percentage width/height in normal grid flow can contribute its `viewBox` aspect ratio to the row's intrinsic height. Updating that viewBox from a ResizeObserver then creates sizing feedback after viewport changes, expanding the routing panel during polling.
+
+The participant cards now determine the row height, and the SVG fills that row without contributing intrinsic size. Browser checks at 320 px, 390 px, and desktop widths verified the route layout and the transition back to desktop.
+
 ## Node 24.10 diagnostic output
 
 Node 24.10 prints an `ExperimentalWarning` when importing `node:sqlite`. Its [SQLite documentation](https://nodejs.org/download/release/v24.10.0/docs/api/sqlite.html) classifies the API as active development. The CLI works, but stderr can contain both this runtime diagnostic and the CLI's single-line JSON error object.

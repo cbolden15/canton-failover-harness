@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Journal } from '../src/journal.js';
+import { Simulator } from '../src/simulator.js';
+import { startUi, trafficSnapshot } from '../src/ui.js';
+
+test('live viewer reads the journal without writes and omits sensitive event data', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'canton-ui-'));
+  const journal = new Journal(join(dir, 'journal.sqlite'));
+  const simulator = new Simulator();
+  const config = await simulator.start();
+  journal.initialize(config, 'viewer-test');
+  journal.event('endpoint_error', { endpoint: 'A', kind: 'availability', token: 'DO_NOT_EXPOSE', preparedTransaction: 'DO_NOT_EXPOSE' });
+  journal.plan({ sequence: 1, inputStateId: 'private-contract', payloadDigest: 'private-payload', status: 'planned' });
+  journal.attempt(1, 'A');
+  const before = journal.events();
+  const ui = await startUi({ journal: journal.path, port: 0 });
+  t.after(async () => { await ui.close(); journal.close(); await simulator.close(); rmSync(dir, { recursive: true, force: true }); });
+  const address = ui.server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  const response = await fetch(`${base}/api/traffic`);
+  const body = await response.json() as { readOnly: boolean; snapshot: ReturnType<typeof trafficSnapshot> };
+  assert.equal(body.readOnly, true);
+  assert.equal(body.snapshot.operations[0].status, 'unknown');
+  assert.equal(body.snapshot.committed, 0);
+  assert.equal(body.snapshot.result, 'INCONCLUSIVE');
+  assert.ok(!JSON.stringify(body).includes('DO_NOT_EXPOSE'));
+  assert.ok(!JSON.stringify(body).includes('private-contract'));
+  assert.equal((await fetch(`${base}/api/demo`, { method: 'POST', headers: { Origin: base } })).status, 403);
+  assert.deepEqual(journal.events(), before);
+  journal.event('stopped', { kind: 'availability' });
+  assert.equal(trafficSnapshot(journal).stopped, true);
+  journal.attempt(1, 'B');
+  assert.equal(trafficSnapshot(journal).stopped, false, 'a resumed run must not retain the previous stopped display');
+});
+
+test('simulation viewer blocks cross-origin starts and reports real receipt-confirmed failover', { timeout: 25000 }, async t => {
+  const ui = await startUi({ port: 0 });
+  t.after(() => ui.close());
+  const address = ui.server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  assert.equal((await fetch(`${base}/api/demo`, { method: 'POST', headers: { Origin: 'https://example.com' } })).status, 403);
+  assert.equal((await fetch(`${base}/api/demo`, { method: 'POST', headers: { Origin: base } })).status, 202);
+  assert.equal((await fetch(`${base}/api/demo`, { method: 'POST', headers: { Origin: base } })).status, 409);
+  let body: { running: boolean; snapshot: ReturnType<typeof trafficSnapshot> };
+  do {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    body = await (await fetch(`${base}/api/traffic`)).json() as typeof body;
+  } while (body.running);
+  assert.equal(body.snapshot.mode, 'simulation');
+  assert.equal(body.snapshot.result, 'SIMULATION_FAILOVER_PASS');
+  assert.equal(body.snapshot.committed, 16);
+  assert.equal(body.snapshot.activeEndpoint, 'B');
+  assert.ok(body.snapshot.events.some(e => e.kind === 'failover'));
+  assert.ok(body.snapshot.events.some(e => e.kind === 'operation_committed' && e.data.endpoint === 'B'));
+});

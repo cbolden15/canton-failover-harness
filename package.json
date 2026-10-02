@@ -31,6 +31,7 @@
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test test/*.test.ts",
     "cli": "tsx src/cli.ts",
+    "ui": "tsx src/ui.ts",
     "start": "node scripts/start.mjs",
     "prepack": "npm run build",
     "smoke:clean": "node scripts/smoke-clean.mjs",

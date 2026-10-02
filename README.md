@@ -28,6 +28,24 @@ npm start
 
 Choose **Try the local demo**. It needs no credentials, validators, or Daml SDK. A successful demo reports `SIMULATION_FAILOVER_PASS` and saves JSON/CSV results under `runs/`. Simulation does not validate your live network.
 
+## Watch traffic fail over
+
+Start the lightweight local browser UI from a source checkout:
+
+```sh
+npm run ui
+```
+
+Open `http://127.0.0.1:8787` and click **Start simulation**. The real harness runs against the local protocol simulator, marks an outage on A, and continues through B. The page shows selected routes, receipt confirmations, unresolved operations, and a traffic timeline. Every demo is labelled simulation and saves its journal and reports under `runs/`.
+
+To watch an existing live run without modifying it:
+
+```sh
+npm run ui -- --journal /absolute/path/to/journal.sqlite
+```
+
+The viewer polls the journal every 400 ms. Run the workload and manage live faults through the existing CLI and operator procedure. Use `--port 8788` if the default port is occupied. Stop the viewer with Ctrl+C.
+
 ## Test your participants
 
 First, follow the [live-test guide](docs/running-tests.md#connect-your-participants) to prepare the shared party, permissions, receipt DAR, and credentials. Then configure a profile:
